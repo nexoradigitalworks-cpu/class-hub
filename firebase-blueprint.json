@@ -1,0 +1,187 @@
+{
+  "entities": {
+    "users": {
+      "title": "UserProfile",
+      "description": "User profile with personal details, avatar and class association",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["STUDENT", "CONTROLLER", "ADMIN"] },
+        "avatarId": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "firstName", "lastName", "email", "role"]
+    },
+    "classes": {
+      "title": "Classroom",
+      "description": "Virtual classroom instance with unique invite code",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "code", "createdBy"]
+    },
+    "classMembers": {
+      "title": "ClassMember",
+      "description": "User membership and role in a specific classroom",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "classId": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["STUDENT", "CONTROLLER", "ADMIN"] },
+        "avatarId": { "type": "string" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["userId", "classId", "role"]
+    },
+    "events": {
+      "title": "CalendarEvent",
+      "description": "Class or personal calendar events",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "type": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "description": { "type": "string" },
+        "isPersonal": { "type": "boolean" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "classId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "date", "startTime", "isPersonal", "authorId", "classId"]
+    },
+    "interrogations": {
+      "title": "Interrogation",
+      "description": "Oral tests and volunteer registrations",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "maxVolunteers": { "type": "number" },
+        "volunteers": { "type": "array" },
+        "volunteerIds": { "type": "array" },
+        "status": { "type": "string", "enum": ["OPEN", "FULL", "CLOSED"] },
+        "classId": { "type": "string" }
+      },
+      "required": ["title", "subject", "date", "startTime", "maxVolunteers", "status", "classId"]
+    },
+    "notices": {
+      "title": "Notice",
+      "description": "Class announcements and urgent notices",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string" },
+        "priority": { "type": "string", "enum": ["NORMAL", "HIGH"] },
+        "authorName": { "type": "string" },
+        "classId": { "type": "string" }
+      },
+      "required": ["title", "content", "date", "priority", "classId"]
+    },
+    "materials": {
+      "title": "MaterialItem",
+      "description": "Study materials and lecture slides",
+      "type": "object",
+      "properties": {
+        "subject": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "fileType": { "type": "string" },
+        "date": { "type": "string" },
+        "classId": { "type": "string" }
+      },
+      "required": ["subject", "title", "date", "classId"]
+    },
+    "surveys": {
+      "title": "Survey",
+      "description": "Class polls and decisions",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "question": { "type": "string" },
+        "options": { "type": "array" },
+        "status": { "type": "string", "enum": ["OPEN", "CLOSED"] },
+        "classId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "question", "options", "status", "classId"]
+    },
+    "representation": {
+      "title": "RepresentationItem",
+      "description": "Student representative items",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string", "enum": ["PROPOSTA", "DOMANDA_PROF", "ASSEMBLEA", "OBIETTIVO", "ATTIVITA"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "date": { "type": "string" },
+        "classId": { "type": "string" }
+      },
+      "required": ["category", "title", "date", "classId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/users" },
+      "description": "User profiles"
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/classes" },
+      "description": "Classroom documents"
+    },
+    "/classes/{classId}/members/{userId}": {
+      "schema": { "$ref": "#/entities/classMembers" },
+      "description": "Members enrolled in the class"
+    },
+    "/classes/{classId}/events/{eventId}": {
+      "schema": { "$ref": "#/entities/events" },
+      "description": "Calendar events per class"
+    },
+    "/classes/{classId}/interrogations/{interrogationId}": {
+      "schema": { "$ref": "#/entities/interrogations" },
+      "description": "Interrogations and volunteer booking slots"
+    },
+    "/classes/{classId}/notices/{noticeId}": {
+      "schema": { "$ref": "#/entities/notices" },
+      "description": "Class announcements and circulars"
+    },
+    "/classes/{classId}/materials/{materialId}": {
+      "schema": { "$ref": "#/entities/materials" },
+      "description": "Class shared materials"
+    },
+    "/classes/{classId}/surveys/{surveyId}": {
+      "schema": { "$ref": "#/entities/surveys" },
+      "description": "Class votes and surveys"
+    },
+    "/classes/{classId}/representation/{repId}": {
+      "schema": { "$ref": "#/entities/representation" },
+      "description": "Class representative proposals and notes"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "ClassHub",
+  "description": "Piattaforma scolastica per classi con calendario, interrogazioni e volontari, compiti, avvisi, materiali, sondaggi e rappresentanza.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

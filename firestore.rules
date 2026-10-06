@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isMemberOfClass(classId) {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(classId)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         getUserData().classId == classId)
+      );
+    }
+
+    function isClassAdmin(classId) {
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/classes/$(classId)) && 
+         get(/databases/$(database)/documents/classes/$(classId)).data.createdBy == request.auth.uid) ||
+        (exists(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid)).data.role == 'ADMIN') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(classId)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(classId)).data.role == 'ADMIN') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         getUserData().classId == classId && getUserData().role == 'ADMIN')
+      );
+    }
+
+    function isClassControllerOrAdmin(classId) {
+      return isSignedIn() && (
+        isClassAdmin(classId) ||
+        (exists(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid)).data.role == 'CONTROLLER' || 
+          get(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid)).data.role == 'ADMIN')) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(classId)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(classId)).data.role == 'CONTROLLER' || 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/memberships/$(classId)).data.role == 'ADMIN')) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         getUserData().classId == classId && 
+         (getUserData().role == 'CONTROLLER' || getUserData().role == 'ADMIN'))
+      );
+    }
+
+    // User Profiles and Multi-Class Memberships
+    match /users/{userId} {
+      allow get: if isSignedIn() && (
+        request.auth.uid == userId || 
+        (resource.data.classId != null && resource.data.classId == getUserData().classId)
+      );
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (resource.data.classId != null && isClassAdmin(resource.data.classId))
+      );
+      allow delete: if isUser(userId);
+
+      // User's own multi-class memberships
+      match /memberships/{classId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // Classes
+    match /classes/{classId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(classId);
+      allow update: if isClassAdmin(classId);
+      allow delete: if isClassAdmin(classId);
+
+      // Class Members
+      match /members/{memberUserId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && (request.auth.uid == memberUserId || isClassAdmin(classId));
+        allow update, delete: if isSignedIn() && (request.auth.uid == memberUserId || isClassAdmin(classId));
+      }
+
+      // Calendar Events - Personal events are strictly private to author!
+      match /events/{eventId} {
+        allow read: if isMemberOfClass(classId) && (
+          resource.data.isPersonal != true || resource.data.authorId == request.auth.uid
+        );
+        allow create: if isMemberOfClass(classId) && (
+          (request.resource.data.isPersonal == true && request.resource.data.authorId == request.auth.uid) ||
+          (request.resource.data.isPersonal != true && isClassControllerOrAdmin(classId))
+        );
+        allow update, delete: if isMemberOfClass(classId) && (
+          (resource.data.isPersonal == true && resource.data.authorId == request.auth.uid) ||
+          isClassControllerOrAdmin(classId)
+        );
+      }
+
+      // Interrogations & Volunteers
+      match /interrogations/{interrogationId} {
+        allow read: if isMemberOfClass(classId);
+        allow create, delete: if isClassControllerOrAdmin(classId);
+        allow update: if isMemberOfClass(classId);
+      }
+
+      // Notices & Circulars
+      match /notices/{noticeId} {
+        allow read: if isMemberOfClass(classId);
+        allow write: if isClassControllerOrAdmin(classId);
+      }
+
+      // Shared Materials
+      match /materials/{materialId} {
+        allow read: if isMemberOfClass(classId);
+        allow write: if isClassControllerOrAdmin(classId);
+      }
+
+      // Surveys
+      match /surveys/{surveyId} {
+        allow read: if isMemberOfClass(classId);
+        allow create, delete: if isClassControllerOrAdmin(classId);
+        allow update: if isMemberOfClass(classId);
+      }
+
+      // Representation
+      match /representation/{repId} {
+        allow read: if isMemberOfClass(classId);
+        allow create: if isMemberOfClass(classId);
+        allow update, delete: if isClassControllerOrAdmin(classId);
+      }
+    }
+  }
+}
