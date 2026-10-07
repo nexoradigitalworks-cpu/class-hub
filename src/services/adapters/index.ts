@@ -434,6 +434,19 @@ export const eventsAdapter = {
       throw new Error(error?.message || 'Impossibile salvare l\'evento.');
     }
 
+    if (isSupabaseConfigured && supabase && !event.isPersonal && data.class_id && data.id) {
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'EVENT',
+          referenceId: data.id
+        }
+      });
+      if (pushError) {
+        console.warn('Impossibile inviare notifica push');
+      }
+    }
+
     return {
       ...event,
       id: data.id,
@@ -538,6 +551,19 @@ export const interrogationsAdapter = {
 
     if (error || !data) {
       throw new Error(error?.message || 'Errore nella creazione dell\'interrogazione.');
+    }
+
+    if (isSupabaseConfigured && supabase && data.class_id && data.id) {
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'INTERROGATION',
+          referenceId: data.id
+        }
+      });
+      if (pushError) {
+        console.warn('Impossibile inviare notifica push');
+      }
     }
 
     return {
@@ -665,6 +691,19 @@ export const noticesAdapter = {
 
     if (error || !data) {
       throw new Error(error?.message || 'Impossibile pubblicare l\'avviso.');
+    }
+
+    if (isSupabaseConfigured && supabase && data.class_id && data.id) {
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'NOTICE',
+          referenceId: data.id
+        }
+      });
+      if (pushError) {
+        console.warn('Impossibile inviare notifica push');
+      }
     }
 
     return {
