@@ -10,6 +10,7 @@
 
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { localStore } from '../dataStore';
+import { logger } from '../../utils/logger';
 import { 
   UserProfile, CalendarEvent, Interrogation, Notice, 
   MaterialItem, Survey, RepresentationItem, TimetableSlot, 
@@ -355,31 +356,42 @@ export const eventsAdapter = {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*, profiles(first_name, last_name)')
-        .or(`class_id.eq.${classId},and(is_personal.eq.true,author_id.eq.${userId})`)
-        .order('event_date', { ascending: true });
+      let query = supabase.from('events').select('*, profiles(first_name, last_name)');
+      if (classId && userId) {
+        query = query.or(`class_id.eq.${classId},and(is_personal.eq.true,author_id.eq.${userId})`);
+      } else if (classId) {
+        query = query.eq('class_id', classId);
+      } else if (userId) {
+        query = query.eq('is_personal', true).eq('author_id', userId);
+      }
+      query = query.order('event_date', { ascending: true });
+
+      const { data, error } = await query;
 
       if (error || !data) return localStore.getEvents(classId, userId);
 
-      return data.map((e: any) => ({
-        id: e.id,
-        title: e.title,
-        subject: e.subject_name || undefined,
-        type: e.type,
-        date: e.event_date,
-        startTime: e.start_time,
-        endTime: e.end_time || undefined,
-        description: e.description || undefined,
-        teacher: e.teacher || undefined,
-        isPersonal: e.is_personal,
-        authorId: e.author_id,
-        authorName: e.profiles ? `${e.profiles.first_name} ${e.profiles.last_name}` : 'Autore',
-        classId: e.class_id || undefined,
-        interrogationId: e.interrogation_id || undefined,
-        createdAt: e.created_at
-      }));
+      return data.map((e: any) => {
+        const fn = e.profiles?.first_name || '';
+        const ln = e.profiles?.last_name || '';
+        const authorName = `${fn} ${ln}`.trim() || 'Autore';
+        return {
+          id: e.id,
+          title: e.title,
+          subject: e.subject_name || undefined,
+          type: e.type,
+          date: e.event_date,
+          startTime: e.start_time,
+          endTime: e.end_time || undefined,
+          description: e.description || undefined,
+          teacher: e.teacher || undefined,
+          isPersonal: e.is_personal,
+          authorId: e.author_id,
+          authorName,
+          classId: e.class_id || undefined,
+          interrogationId: e.interrogation_id || undefined,
+          createdAt: e.created_at
+        };
+      });
     } catch {
       return localStore.getEvents(classId, userId);
     }
@@ -435,6 +447,7 @@ export const eventsAdapter = {
     }
 
     if (isSupabaseConfigured && supabase && !event.isPersonal && data.class_id && data.id) {
+      logger.network('info', 'Invio notifica push per nuovo evento di classe', { type: 'EVENT', classId: data.class_id, referenceId: data.id });
       const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
         body: {
           classId: data.class_id,
@@ -443,7 +456,10 @@ export const eventsAdapter = {
         }
       });
       if (pushError) {
+        logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'EVENT' });
         console.warn('Impossibile inviare notifica push');
+      } else {
+        logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'EVENT' });
       }
     }
 
@@ -493,12 +509,17 @@ export const interrogationsAdapter = {
       if (error || !data) return localStore.getInterrogations(classId);
 
       return data.map((item: any) => {
-        const volunteersList = (item.interrogation_volunteers || []).map((v: any) => ({
-          userId: v.user_id,
-          userName: v.profiles ? `${v.profiles.first_name} ${v.profiles.last_name}` : 'Studente',
-          userAvatar: v.profiles?.avatar_id || 'avatar-blue',
-          timestamp: v.joined_at
-        }));
+        const volunteersList = (item.interrogation_volunteers || []).map((v: any) => {
+          const fn = v.profiles?.first_name || '';
+          const ln = v.profiles?.last_name || '';
+          const full = `${fn} ${ln}`.trim();
+          return {
+            userId: v.user_id,
+            userName: full || 'Studente',
+            userAvatar: v.profiles?.avatar_id || 'avatar-blue',
+            timestamp: v.joined_at
+          };
+        });
 
         return {
           id: item.id,
@@ -554,6 +575,7 @@ export const interrogationsAdapter = {
     }
 
     if (isSupabaseConfigured && supabase && data.class_id && data.id) {
+      logger.network('info', 'Invio notifica push per nuova interrogazione', { type: 'INTERROGATION', classId: data.class_id, referenceId: data.id });
       const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
         body: {
           classId: data.class_id,
@@ -562,7 +584,10 @@ export const interrogationsAdapter = {
         }
       });
       if (pushError) {
+        logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'INTERROGATION' });
         console.warn('Impossibile inviare notifica push');
+      } else {
+        logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'INTERROGATION' });
       }
     }
 
@@ -616,23 +641,110 @@ export const interrogationsAdapter = {
     interrogationId: string, 
     user: { uid: string; name: string; avatarId: string }
   ): Promise<{ success: boolean; message: string }> {
+    logger.adapter('info', `Richiesta cambio volontario per interrogazione ${interrogationId}`, { userId: user.uid, userName: user.name });
+
     if (!isSupabaseConfigured || !supabase) {
+      logger.adapter('info', 'Supabase non configurato, delega a localStore per volontario');
       return localStore.toggleVolunteer(interrogationId, user);
     }
 
-    // REAL SUPABASE SECURE RPC CALL
-    const { data, error } = await (supabase.rpc as any)('toggle_volunteer_reservation', {
-      p_interrogation_id: interrogationId
-    });
+    // Tier 1: Try Supabase RPC call if available
+    try {
+      const { data, error } = await (supabase.rpc as any)('toggle_volunteer_reservation', {
+        p_interrogation_id: interrogationId
+      });
 
-    if (error) {
-      return { success: false, message: error.message };
+      if (!error && data) {
+        logger.adapter('info', 'Prenotazione volontario completata via RPC toggle_volunteer_reservation', { result: data });
+        return {
+          success: data.success ?? true,
+          message: data.message || 'Operazione completata'
+        };
+      }
+      if (error) {
+        logger.adapter('warn', 'Risposta RPC toggle_volunteer_reservation non disponibile o errata', { error: error.message });
+      }
+    } catch (err: any) {
+      logger.adapter('warn', 'Eccezione RPC toggle_volunteer_reservation, passaggio a query diretta tabella', { error: err?.message });
     }
 
-    return {
-      success: data?.success ?? true,
-      message: data?.message ?? 'Operazione completata'
-    };
+    // Tier 2: Direct Supabase table operations on interrogation_volunteers
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id || user.uid;
+
+      if (userId) {
+        // Check if user is already registered as a volunteer
+        const { data: existing, error: checkError } = await supabase
+          .from('interrogation_volunteers')
+          .select('user_id')
+          .eq('interrogation_id', interrogationId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!checkError && existing) {
+          // Unbook volunteer slot
+          const { error: delError } = await supabase
+            .from('interrogation_volunteers')
+            .delete()
+            .eq('interrogation_id', interrogationId)
+            .eq('user_id', userId);
+
+          if (!delError) {
+            logger.adapter('info', 'Cancellazione volontario eseguita su tabella interrogation_volunteers');
+            localStore.toggleVolunteer(interrogationId, user);
+            return { success: true, message: 'Prenotazione ritirata con successo.' };
+          } else {
+            logger.adapter('error', 'Errore durante la cancellazione volontario su tabella', { error: delError.message });
+          }
+        } else if (!checkError) {
+          // Book volunteer slot: check status and capacity
+          const { data: interrogation, error: intError } = await supabase
+            .from('interrogations')
+            .select('status, max_volunteers')
+            .eq('id', interrogationId)
+            .single();
+
+          if (!intError && interrogation) {
+            if (interrogation.status === 'CLOSED') {
+              logger.adapter('warn', 'Tentativo di iscrizione su interrogazione CHIUSA');
+              return { success: false, message: 'Le iscrizioni per questa interrogazione sono chiuse.' };
+            }
+
+            const { count, error: countError } = await supabase
+              .from('interrogation_volunteers')
+              .select('*', { count: 'exact', head: true })
+              .eq('interrogation_id', interrogationId);
+
+            if (!countError && count !== null && count >= interrogation.max_volunteers) {
+              logger.adapter('warn', 'Posti volontari esauriti', { count, max: interrogation.max_volunteers });
+              return { success: false, message: 'Tutti i posti disponibili per i volontari sono esauriti.' };
+            }
+
+            const { error: insError } = await supabase
+              .from('interrogation_volunteers')
+              .insert({
+                interrogation_id: interrogationId,
+                user_id: userId
+              });
+
+            if (!insError) {
+              logger.adapter('info', 'Iscrizione volontario inserita su tabella interrogation_volunteers');
+              localStore.toggleVolunteer(interrogationId, user);
+              return { success: true, message: 'Prenotazione registrata! Sei nella lista volontari.' };
+            } else {
+              logger.adapter('error', 'Errore inserimento volontario su tabella', { error: insError.message });
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione tabella diretta volontari, passaggio a localStore', { error: err?.message });
+    }
+
+    // Tier 3: LocalStore fallback
+    logger.adapter('warn', 'Esecuzione fallback finale localStore per volontari');
+    return localStore.toggleVolunteer(interrogationId, user);
   }
 };
 
@@ -694,6 +806,7 @@ export const noticesAdapter = {
     }
 
     if (isSupabaseConfigured && supabase && data.class_id && data.id) {
+      logger.network('info', 'Invio notifica push per nuovo avviso', { type: 'NOTICE', classId: data.class_id, referenceId: data.id });
       const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
         body: {
           classId: data.class_id,
@@ -702,7 +815,10 @@ export const noticesAdapter = {
         }
       });
       if (pushError) {
+        logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'NOTICE' });
         console.warn('Impossibile inviare notifica push');
+      } else {
+        logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'NOTICE' });
       }
     }
 
@@ -756,6 +872,10 @@ export const materialsAdapter = {
             }
           }
 
+          const fn = m.profiles?.first_name || '';
+          const ln = m.profiles?.last_name || '';
+          const authorName = `${fn} ${ln}`.trim() || undefined;
+
           return {
             id: m.id,
             subject: m.subject_name,
@@ -767,7 +887,7 @@ export const materialsAdapter = {
             fileSize: m.file_size ? `${Math.round(m.file_size / 1024)} KB` : undefined,
             fileType: m.file_type,
             date: m.material_date,
-            authorName: m.profiles ? `${m.profiles.first_name} ${m.profiles.last_name}` : undefined,
+            authorName,
             classId: m.class_id
           };
         })
@@ -1099,6 +1219,10 @@ export const surveysAdapter = {
             };
           });
 
+        const sFn = s.profiles?.first_name || '';
+        const sLn = s.profiles?.last_name || '';
+        const authorName = `${sFn} ${sLn}`.trim() || undefined;
+
         return {
           id: s.id,
           title: s.title,
@@ -1108,7 +1232,7 @@ export const surveysAdapter = {
           deadline: s.deadline || undefined,
           createdAt: s.created_at,
           totalVotes: votes.length,
-          authorName: s.profiles ? `${s.profiles.first_name} ${s.profiles.last_name}` : undefined,
+          authorName,
           classId: s.class_id
         };
       });
@@ -1248,16 +1372,22 @@ export const representationAdapter = {
 
       if (error || !data) return localStore.getRepresentationItems(classId);
 
-      return data.map((item: any) => ({
-        id: item.id,
-        category: item.category,
-        title: item.title,
-        description: item.description,
-        status: item.status,
-        date: item.item_date,
-        authorName: item.profiles ? `${item.profiles.first_name} ${item.profiles.last_name}` : undefined,
-        classId: item.class_id
-      }));
+      return data.map((item: any) => {
+        const rFn = item.profiles?.first_name || '';
+        const rLn = item.profiles?.last_name || '';
+        const authorName = `${rFn} ${rLn}`.trim() || undefined;
+
+        return {
+          id: item.id,
+          category: item.category,
+          title: item.title,
+          description: item.description,
+          status: item.status,
+          date: item.item_date,
+          authorName,
+          classId: item.class_id
+        };
+      });
     } catch {
       return localStore.getRepresentationItems(classId);
     }

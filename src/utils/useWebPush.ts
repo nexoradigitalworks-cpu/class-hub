@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { logger } from './logger';
 
 // Helper to convert VAPID public key string to Uint8Array required for push subscription
 function urlBase64ToUint8Array(base64String: string) {
@@ -40,7 +41,10 @@ export function useWebPush() {
   };
 
   const subscribeToPush = async (vapidPublicKey: string): Promise<boolean> => {
-    if (!isSupported || !currentUser || !profile?.classId) return false;
+    if (!isSupported || !currentUser || !profile?.classId) {
+      logger.push('warn', 'Attivazione Push annullata: browser o utente non supportato');
+      return false;
+    }
     setLoading(true);
 
     try {
@@ -48,6 +52,7 @@ export function useWebPush() {
       setPermission(permissionResult);
 
       if (permissionResult !== 'granted') {
+        logger.push('warn', 'Permesso notifiche browser negato', { permission: permissionResult });
         setLoading(false);
         return false;
       }
@@ -56,7 +61,7 @@ export function useWebPush() {
       
       // Check if VAPID key is provided
       if (!vapidPublicKey) {
-        console.warn('VAPID public key not provided for push subscription');
+        logger.push('warn', 'Chiave pubblica VAPID mancante nelle variabili ambiente');
         setLoading(false);
         return false;
       }
@@ -78,7 +83,7 @@ export function useWebPush() {
           .single();
 
         if (memberErr || !memberCheck) {
-          console.error('User is not a member of this class');
+          logger.push('error', 'Verifica appartenenza classe fallita per salvataggio push', { classId: profile.classId });
           setLoading(false);
           return false;
         }
@@ -97,17 +102,18 @@ export function useWebPush() {
         });
 
         if (error) {
-          console.error('Error saving push subscription to Supabase:', error);
+          logger.push('error', 'Errore salvataggio sottoscrizione push su database Supabase', { error: error.message });
           setLoading(false);
           return false;
         }
       }
 
+      logger.push('info', 'Sottoscrizione notifiche push attivata e registrata con successo', { classId: profile.classId });
       setIsSubscribed(true);
       setLoading(false);
       return true;
-    } catch (err) {
-      console.error('Failed to subscribe to push notifications:', err);
+    } catch (err: any) {
+      logger.push('error', 'Eccezione durante la sottoscrizione push', { error: err?.message });
       setLoading(false);
       return false;
     }
@@ -134,11 +140,12 @@ export function useWebPush() {
           .eq('class_id', profile.classId);
       }
 
+      logger.push('info', 'Disattivazione notifiche push completata');
       setIsSubscribed(false);
       setLoading(false);
       return true;
-    } catch (err) {
-      console.error('Failed to unsubscribe from push:', err);
+    } catch (err: any) {
+      logger.push('error', 'Eccezione durante la disattivazione push', { error: err?.message });
       setLoading(false);
       return false;
     }

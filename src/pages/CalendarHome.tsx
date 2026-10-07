@@ -560,8 +560,8 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
                       {/* Interrogazioni & Volontari Cards */}
                       {dayData.interrogations.map(inter => {
-                        const isBooked = inter.volunteerIds?.includes(profile?.uid || '');
-                        const isFull = inter.volunteers.length >= inter.maxVolunteers;
+                        const isBooked = Boolean(inter.volunteerIds?.includes(profile?.uid || '') || inter.volunteers?.some(v => v.userId === profile?.uid));
+                        const isFull = (inter.volunteers?.length || 0) >= inter.maxVolunteers;
 
                         return (
                           <div 
@@ -757,8 +757,8 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                       </div>
                     ) : (
                       selectedDayData.interrogations.map(inter => {
-                        const isBooked = inter.volunteerIds?.includes(profile?.uid || '');
-                        const isFull = inter.volunteers.length >= inter.maxVolunteers;
+                        const isBooked = Boolean(inter.volunteerIds?.includes(profile?.uid || '') || inter.volunteers?.some(v => v.userId === profile?.uid));
+                        const isFull = (inter.volunteers?.length || 0) >= inter.maxVolunteers;
 
                         return (
                           <div key={inter.id} className="p-3.5 bg-white rounded-2xl border border-purple-100 shadow-2xs space-y-2.5">
@@ -1102,8 +1102,8 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {/* Interrogazioni */}
                     {selectedDayData.interrogations.map(inter => {
-                      const isBooked = inter.volunteerIds?.includes(profile?.uid || '');
-                      const isFull = inter.volunteers.length >= inter.maxVolunteers;
+                      const isBooked = Boolean(inter.volunteerIds?.includes(profile?.uid || '') || inter.volunteers?.some(v => v.userId === profile?.uid));
+                      const isFull = (inter.volunteers?.length || 0) >= inter.maxVolunteers;
 
                       return (
                         <div key={inter.id} className="p-3.5 bg-purple-50/40 rounded-xl border border-purple-100 flex flex-col justify-between gap-2.5">

@@ -3,6 +3,7 @@ import { UserProfile, UserRole, Classroom, ClassMember, UserMembership } from '.
 import { localStore, PRESET_USERS } from '../services/dataStore';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { authAdapter, classAdapter } from '../services/adapters';
+import { logger } from '../utils/logger';
 
 interface AuthContextType {
   currentUser: { uid: string; email: string; displayName?: string } | null;
@@ -118,6 +119,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentClass(activeClassObj);
         setAllMembers(membersList);
         setLoading(false);
+        logger.lifecycle('info', 'Sincronizzazione dati utente e classe completata', {
+          uid: user.uid,
+          role: activeRole,
+          classId: effectiveClassId
+        });
         return;
       } catch (err) {
         console.error('Errore durante reloadUserData con Supabase:', err);

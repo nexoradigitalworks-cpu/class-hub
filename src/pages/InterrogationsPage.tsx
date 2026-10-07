@@ -151,7 +151,8 @@ export const InterrogationsPage: React.FC = () => {
           return false;
         }
       } else if (statusFilter === 'MY_BOOKINGS') {
-        if (!item.volunteerIds?.includes(profile?.uid || '')) {
+        const booked = item.volunteerIds?.includes(profile?.uid || '') || item.volunteers?.some(v => v.userId === profile?.uid);
+        if (!booked) {
           return false;
         }
       } else if (statusFilter === 'OPEN') {
@@ -227,8 +228,8 @@ export const InterrogationsPage: React.FC = () => {
       {/* Interrogations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map(item => {
-          const isBooked = item.volunteerIds?.includes(profile?.uid || '');
-          const isFull = item.volunteers.length >= item.maxVolunteers;
+          const isBooked = Boolean(item.volunteerIds?.includes(profile?.uid || '') || item.volunteers?.some(v => v.userId === profile?.uid));
+          const isFull = (item.volunteers?.length || 0) >= item.maxVolunteers;
           const isClosed = item.status === 'CLOSED';
 
           return (

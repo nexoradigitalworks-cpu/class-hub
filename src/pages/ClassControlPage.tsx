@@ -13,16 +13,18 @@ import { FormSelect } from '../components/ui/FormSelect';
 import { ROLE_OPTIONS } from '../utils/dropdownPresets';
 import { AvatarIcon } from '../components/AvatarIcon';
 import { useWebPush } from '../utils/useWebPush';
-import { Bell, BellOff } from 'lucide-react';
+import { Bell, BellOff, Terminal } from 'lucide-react';
+import { DebugConsole } from '../components/DebugConsole';
 
 export const ClassControlPage: React.FC = () => {
-  const { profile, currentClass, allMembers, isAdmin, updateUserRole } = useAuth();
+  const { profile, currentClass, allMembers, isAdmin, isController, updateUserRole } = useAuth();
   const { isSupported, isSubscribed, subscribeToPush, unsubscribeFromPush, loading: pushLoading } = useWebPush();
   
   const [searchMember, setSearchMember] = useState('');
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showProjectorModal, setShowProjectorModal] = useState(false);
+  const [showDebugConsole, setShowDebugConsole] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
 
@@ -140,14 +142,18 @@ export const ClassControlPage: React.FC = () => {
             <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
               isAdmin 
                 ? 'bg-purple-100 text-purple-800' 
+                : isController 
+                ? 'bg-amber-100 text-amber-800' 
                 : 'bg-blue-100 text-blue-800'
             }`}>
-              {isAdmin ? 'Modalità Modifica Admin' : 'Visualizzazione Studente'}
+              {isAdmin ? 'Modalità Modifica Admin' : isController ? 'Visualizzazione Rappresentante' : 'Visualizzazione Studente'}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             {isAdmin 
               ? 'Pannello di gestione: codici di accesso, impostazioni e registro iscritti della classe.'
+              : isController
+              ? 'Visualizzazione rappresentante: informazioni e registro iscritti della classe.'
               : 'Informazioni ufficiali della classe, codice per invitare compagni e registro iscritti.'}
           </p>
         </div>
@@ -436,6 +442,30 @@ export const ClassControlPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Unified Debugging Console & Log Viewer Utility */}
+      {(isAdmin || isController) && (
+        <div className="pt-4 border-t border-slate-200/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-purple-600" />
+              <h3 className="font-extrabold text-base text-slate-900">
+                Console Diagnostica & Strumento Log
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowDebugConsole(!showDebugConsole)}
+              className="text-xs font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1 rounded-xl transition cursor-pointer"
+            >
+              {showDebugConsole ? 'Nascondi Console' : 'Mostra Console Log'}
+            </button>
+          </div>
+
+          {showDebugConsole && (
+            <DebugConsole />
+          )}
+        </div>
+      )}
 
       {/* Projector / LIM Fullscreen Code Modal */}
       <AnimatePresence>

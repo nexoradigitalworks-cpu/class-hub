@@ -772,15 +772,17 @@ class LocalDataStore {
   ): { success: boolean; message: string } {
     const interrogation = this.state.interrogations[interrogationId];
     if (!interrogation) {
-      throw new Error('Interrogazione non trovata.');
+      return { success: false, message: 'Interrogazione non trovata.' };
     }
 
-    const isAlreadyBooked = interrogation.volunteerIds?.includes(user.uid);
+    const currentVolunteers = interrogation.volunteers || [];
+    const currentIds = interrogation.volunteerIds || currentVolunteers.map(v => v.userId);
+    const isAlreadyBooked = currentIds.includes(user.uid) || currentVolunteers.some(v => v.userId === user.uid);
 
     if (isAlreadyBooked) {
-      const updatedVolunteers = interrogation.volunteers.filter(v => v.userId !== user.uid);
-      const updatedIds = interrogation.volunteerIds.filter(id => id !== user.uid);
-      const newStatus = updatedVolunteers.length >= interrogation.maxVolunteers ? 'FULL' : 'OPEN';
+      const updatedVolunteers = currentVolunteers.filter(v => v.userId !== user.uid);
+      const updatedIds = currentIds.filter(id => id !== user.uid);
+      const newStatus = interrogation.status === 'CLOSED' ? 'CLOSED' : (updatedVolunteers.length >= interrogation.maxVolunteers ? 'FULL' : 'OPEN');
 
       this.state.interrogations[interrogationId] = {
         ...interrogation,
@@ -792,10 +794,10 @@ class LocalDataStore {
       return { success: true, message: 'Prenotazione ritirata con successo.' };
     } else {
       if (interrogation.status === 'CLOSED') {
-        throw new Error('Le iscrizioni per questa interrogazione sono chiuse.');
+        return { success: false, message: 'Le iscrizioni per questa interrogazione sono chiuse.' };
       }
-      if (interrogation.volunteers.length >= interrogation.maxVolunteers) {
-        throw new Error('Tutti i posti disponibili per i volontari sono esauriti.');
+      if (currentVolunteers.length >= interrogation.maxVolunteers) {
+        return { success: false, message: 'Tutti i posti disponibili per i volontari sono esauriti.' };
       }
 
       const newSlot: VolunteerSlot = {
@@ -805,8 +807,8 @@ class LocalDataStore {
         timestamp: new Date().toISOString()
       };
 
-      const updatedVolunteers = [...interrogation.volunteers, newSlot];
-      const updatedIds = [...(interrogation.volunteerIds || []), user.uid];
+      const updatedVolunteers = [...currentVolunteers, newSlot];
+      const updatedIds = [...currentIds, user.uid];
       const newStatus = updatedVolunteers.length >= interrogation.maxVolunteers ? 'FULL' : 'OPEN';
 
       this.state.interrogations[interrogationId] = {

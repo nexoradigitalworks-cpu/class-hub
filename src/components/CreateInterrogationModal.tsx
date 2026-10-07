@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { interrogationsAdapter, timetableAdapter } from '../services/adapters';
 import { X, Clock } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
-import { MAX_VOLUNTEERS_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
+import { MAX_VOLUNTEERS_OPTIONS, formatSubjectToOption, SUBJECT_OPTIONS } from '../utils/dropdownPresets';
 import { SubjectItem } from '../types';
 import { SelectOption } from './ui/CustomSelect';
 
@@ -86,7 +86,9 @@ export const CreateInterrogationModal: React.FC<Props> = ({
     }
   };
 
-  const subjectOptions: SelectOption[] = subjects.map(formatSubjectToOption);
+  const subjectOptions: SelectOption[] = subjects.length > 0 
+    ? subjects.map(formatSubjectToOption) 
+    : SUBJECT_OPTIONS;
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
