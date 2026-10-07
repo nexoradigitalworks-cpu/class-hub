@@ -29,110 +29,54 @@ export const ClassHubLogo: React.FC<ClassHubLogoProps> = ({
     <svg
       width={pixelSize}
       height={pixelSize}
-      viewBox="0 0 120 120"
+      viewBox="0 0 200 200"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="shrink-0 transition-transform duration-200"
+      className="shrink-0 transition-transform duration-200 select-none"
       aria-label="ClassHub Logo"
     >
-      <defs>
-        {/* Primary vibrant gradient */}
-        <linearGradient id="chGradPrimary" x1="10" y1="10" x2="110" y2="110" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#3B82F6" />
-          <stop offset="50%" stopColor="#2563EB" />
-          <stop offset="100%" stopColor="#1D4ED8" />
-        </linearGradient>
+      {/* Top Center Head */}
+      <circle cx="100" cy="42" r="23" fill="#0047BA" />
 
-        {/* Accent gradient (warm glow) */}
-        <linearGradient id="chGradAccent" x1="30" y1="15" x2="90" y2="95" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#60A5FA" />
-          <stop offset="60%" stopColor="#2563EB" />
-          <stop offset="100%" stopColor="#1E40AF" />
-        </linearGradient>
+      {/* Left Head */}
+      <circle cx="48" cy="76" r="23" fill="#0047BA" />
 
-        {/* Soft shadow */}
-        <filter id="chShadow" x="-10%" y="-10%" width="125%" height="130%" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#1D4ED8" floodOpacity="0.25" />
-        </filter>
+      {/* Right Head */}
+      <circle cx="152" cy="76" r="23" fill="#0047BA" />
 
-        {/* Cap top highlight */}
-        <linearGradient id="chCapGold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#F59E0B" />
-          <stop offset="100%" stopColor="#D97706" />
-        </linearGradient>
-      </defs>
-
-      {/* Rounded squircle background badge with soft glass lighting */}
-      <rect
-        x="6"
-        y="6"
-        width="108"
-        height="108"
-        rx="28"
-        fill="url(#chGradPrimary)"
-        filter="url(#chShadow)"
-      />
-
-      {/* Inner subtle glow rim */}
-      <rect
-        x="7"
-        y="7"
-        width="106"
-        height="106"
-        rx="27"
-        stroke="white"
-        strokeOpacity="0.2"
-        strokeWidth="2"
-        fill="none"
-      />
-
-      {/* Decorative background rays / modern geometry */}
-      <circle cx="60" cy="58" r="38" stroke="white" strokeOpacity="0.08" strokeWidth="1.5" strokeDasharray="3 3" />
-
-      {/* Open Book Wings (Bottom foundation) */}
+      {/* Center Top Shoulders */}
       <path
-        d="M60 76C48 70 34 72 26 77V53C34 48 48 47 60 52C72 47 86 48 94 53V77C86 72 72 70 60 76Z"
-        fill="white"
-        fillOpacity="0.18"
-      />
-      
-      {/* Dynamic Open Pages */}
-      <path
-        d="M60 83C47 77 34 79 28 83V60C34 56 47 55 60 60C73 55 86 56 92 60V83C86 79 73 77 60 83Z"
-        fill="white"
-        fillOpacity="0.95"
-      />
-      {/* Spine line */}
-      <path
-        d="M60 59V83"
-        stroke="#2563EB"
-        strokeWidth="2.5"
-        strokeLinecap="round"
+        d="M 68 76 C 76 60, 124 60, 132 76 C 120 84, 80 84, 68 76 Z"
+        fill="#0047BA"
       />
 
-      {/* Graduation Mortarboard Cap (Top Diamond) */}
+      {/* Main Group Body Silhouette Embracing Document */}
       <path
-        d="M60 30L94 43L60 56L26 43L60 30Z"
-        fill="white"
+        d="M 37 98 
+           C 37 98, 62 82, 95 90 
+           C 96 90, 96 94, 96 96
+           C 80 96, 68 102, 68 110
+           L 68 156
+           C 68 166, 78 174, 90 174
+           L 110 174
+           C 122 174, 132 166, 132 156
+           L 132 110
+           C 132 102, 120 96, 104 96
+           C 104 94, 104 90, 105 90
+           C 138 82, 163 98, 163 98
+           C 165 128, 148 162, 128 174
+           C 114 182, 86 182, 72 174
+           C 52 162, 35 128, 37 98 Z"
+        fill="#0047BA"
       />
 
-      {/* Cap Under-Band / Depth */}
-      <path
-        d="M38 48.5V56.5C38 63 48 68 60 68C72 68 82 63 82 56.5V48.5L60 57L38 48.5Z"
-        fill="#DBEAFE"
-      />
+      {/* Central White Document Sheet with Smooth Rounded Corners */}
+      <rect x="68" y="90" width="64" height="78" rx="14" fill="#FFFFFF" />
 
-      {/* Cap Center Button & Tassel */}
-      <circle cx="60" cy="43" r="3.2" fill="url(#chCapGold)" />
-      {/* Tassel cord flowing to the right */}
-      <path
-        d="M60 43C68 44 80 47 83 55C84 58 84.5 64 84.5 67"
-        stroke="#F59E0B"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-      {/* Tassel end bulb */}
-      <circle cx="84.5" cy="68" r="2.2" fill="#D97706" />
+      {/* 3 Light Blue Horizontal Stripes */}
+      <rect x="77" y="105" width="46" height="8" rx="4" fill="#4C9AFF" />
+      <rect x="77" y="123" width="46" height="8" rx="4" fill="#4C9AFF" />
+      <rect x="77" y="141" width="46" height="8" rx="4" fill="#4C9AFF" />
     </svg>
   );
 
@@ -150,10 +94,10 @@ export const ClassHubLogo: React.FC<ClassHubLogoProps> = ({
       <div className="flex flex-col">
         <div className="flex items-center gap-1.5">
           <span className="font-extrabold tracking-tight text-slate-900 text-lg sm:text-xl leading-none">
-            Class<span className="text-[#2563EB]">Hub</span>
+            Class<span className="text-[#0047BA]">Hub</span>
           </span>
           {showBadge && (
-            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-50 text-[#2563EB] border border-blue-100">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-50 text-[#0047BA] border border-blue-100">
               Scuola
             </span>
           )}
