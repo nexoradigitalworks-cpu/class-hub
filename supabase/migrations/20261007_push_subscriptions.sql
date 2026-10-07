@@ -4,7 +4,7 @@
 create table if not exists public.push_subscriptions (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade not null,
-  class_id text not null,
+  class_id uuid not null,
   endpoint text,
   subscription jsonb not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
