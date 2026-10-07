@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { materialsAdapter } from '../services/adapters';
 import { MaterialItem } from '../types';
 import { CreateMaterialModal } from '../components/CreateMaterialModal';
 import { getSubjectStyle } from '../utils/theme';
@@ -30,22 +30,30 @@ export const MaterialsPage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!profile) return;
-    setMaterials(localStore.getMaterials(profile.classId || ''));
+    try {
+      const list = await materialsAdapter.getMaterials(profile.classId || '');
+      setMaterials(list);
+    } catch {
+      // Fallback
+    }
   };
 
   useEffect(() => {
     loadData();
-    const unsub = localStore.subscribe(loadData);
-    return () => unsub();
   }, [profile]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!isController && !isAdmin) return;
     if (confirm('Rimuovere questo materiale?')) {
-      localStore.deleteMaterial(id);
-      showToast('Materiale eliminato');
+      try {
+        await materialsAdapter.deleteMaterial(id, profile?.classId || undefined);
+        showToast('Materiale eliminato');
+        await loadData();
+      } catch (err: any) {
+        showToast(err.message || 'Errore durante l\'eliminazione');
+      }
     }
   };
 

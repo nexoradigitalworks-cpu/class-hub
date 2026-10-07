@@ -5,7 +5,7 @@ import {
   Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { interrogationsAdapter } from '../services/adapters';
 import { Interrogation } from '../types';
 import { toggleVolunteerReservation } from '../services/interrogations';
 import { CreateInterrogationModal } from '../components/CreateInterrogationModal';
@@ -27,15 +27,18 @@ export const InterrogationsPage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!profile) return;
-    setInterrogations(localStore.getInterrogations(profile.classId || ''));
+    try {
+      const list = await interrogationsAdapter.getInterrogations(profile.classId || '');
+      setInterrogations(list);
+    } catch {
+      // Fallback
+    }
   };
 
   useEffect(() => {
     loadData();
-    const unsub = localStore.subscribe(loadData);
-    return () => unsub();
   }, [profile]);
 
   const handleVolunteerAction = async (interrogationId: string) => {
@@ -47,23 +50,34 @@ export const InterrogationsPage: React.FC = () => {
         avatarId: profile.avatarId
       });
       showToast(res.message);
+      await loadData();
     } catch (err: any) {
       showToast(err.message || 'Errore nella prenotazione.');
     }
   };
 
-  const handleToggleClose = (id: string, currentStatus: string) => {
+  const handleToggleClose = async (id: string, currentStatus: string) => {
     if (!isController && !isAdmin) return;
     const newStatus = currentStatus === 'CLOSED' ? 'OPEN' : 'CLOSED';
-    localStore.updateInterrogationStatus(id, newStatus);
-    showToast(newStatus === 'CLOSED' ? 'Iscrizioni chiuse' : 'Iscrizioni riaperte');
+    try {
+      await interrogationsAdapter.updateInterrogationStatus(id, newStatus);
+      showToast(newStatus === 'CLOSED' ? 'Iscrizioni chiuse' : 'Iscrizioni riaperte');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore nell\'aggiornamento dello stato.');
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!isController && !isAdmin) return;
     if (confirm('Sei sicuro di voler eliminare questa interrogazione?')) {
-      localStore.deleteInterrogation(id);
-      showToast('Interrogazione eliminata');
+      try {
+        await interrogationsAdapter.deleteInterrogation(id);
+        showToast('Interrogazione eliminata');
+        await loadData();
+      } catch (err: any) {
+        showToast(err.message || 'Errore nell\'eliminazione.');
+      }
     }
   };
 

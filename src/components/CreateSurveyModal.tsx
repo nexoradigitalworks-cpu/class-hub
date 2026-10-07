@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { surveysAdapter } from '../services/adapters';
 import { X, Vote, Plus, Trash2 } from 'lucide-react';
 
 interface Props {
@@ -36,7 +36,7 @@ export const CreateSurveyModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
     setOptions(updated);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !question) return;
 
@@ -55,19 +55,24 @@ export const CreateSurveyModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
       return;
     }
 
-    localStore.addSurvey({
-      title,
-      question,
-      options: validOptions,
-      status: 'OPEN',
-      deadline: deadline || undefined,
-      authorName: `${profile.firstName} ${profile.lastName}`
-    });
+    try {
+      await surveysAdapter.addSurvey({
+        title,
+        question,
+        options: validOptions,
+        status: 'OPEN',
+        deadline: deadline || undefined,
+        authorName: `${profile.firstName} ${profile.lastName}`,
+        classId: profile.classId || undefined
+      }, profile.uid);
 
-    setTitle('');
-    setQuestion('');
-    onCreated?.();
-    onClose();
+      setTitle('');
+      setQuestion('');
+      onCreated?.();
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Errore nella creazione del sondaggio.');
+    }
   };
 
   return (

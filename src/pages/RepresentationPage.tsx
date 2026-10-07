@@ -4,7 +4,7 @@ import {
   Trash2, AlertCircle, FileText, MessageSquare 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { representationAdapter } from '../services/adapters';
 import { RepresentationItem } from '../types';
 import { CreateRepresentationModal } from '../components/CreateRepresentationModal';
 import { FormSelect } from '../components/ui/FormSelect';
@@ -22,27 +22,40 @@ export const RepresentationPage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!profile) return;
-    setItems(localStore.getRepresentationItems(profile.classId || ''));
+    try {
+      const list = await representationAdapter.getRepresentationItems(profile.classId || '');
+      setItems(list);
+    } catch {
+      // Fallback
+    }
   };
 
   useEffect(() => {
     loadData();
-    const unsub = localStore.subscribe(loadData);
-    return () => unsub();
   }, [profile]);
 
-  const handleStatusChange = (id: string, newStatus: RepresentationItem['status']) => {
+  const handleStatusChange = async (id: string, newStatus: RepresentationItem['status']) => {
     if (!isController && !isAdmin) return;
-    localStore.updateRepresentationStatus(id, newStatus);
-    showToast('Stato richiesta aggiornato');
+    try {
+      await representationAdapter.updateRepresentationStatus(id, newStatus);
+      showToast('Stato richiesta aggiornato');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore nell\'aggiornamento dello stato');
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!isController && !isAdmin) return;
-    localStore.deleteRepresentationItem(id);
-    showToast('Voce rimossa');
+    try {
+      await representationAdapter.deleteRepresentationItem(id);
+      showToast('Voce rimossa');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore nella rimozione');
+    }
   };
 
   const categoryLabels: Record<string, string> = {

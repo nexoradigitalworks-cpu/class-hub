@@ -58,7 +58,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({
           onChange={(e) => onChange(e.target.value)}
           className={`w-full bg-white border border-slate-200 text-slate-900 rounded-xl font-medium transition shadow-2xs appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${
             compact 
-              ? 'h-[38px] pl-3 pr-8 text-xs' 
+              ? 'h-8 pl-2.5 pr-7 text-xs bg-slate-50/80 hover:bg-white border-slate-200/80 rounded-lg text-slate-700 shadow-none hover:border-slate-300' 
               : 'h-11 pl-3.5 pr-10 text-sm'
           } ${disabled ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'hover:border-slate-300'}`}
         >
@@ -85,7 +85,9 @@ export const FormSelect: React.FC<FormSelectProps> = ({
               ))}
         </select>
 
-        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 flex items-center">
+        <div className={`absolute top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 flex items-center ${
+          compact ? 'right-2' : 'right-3.5'
+        }`}>
           <ChevronDown className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
         </div>
       </div>

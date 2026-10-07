@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { materialsAdapter, timetableAdapter } from '../services/adapters';
 import { X, BookOpen, Upload, FileText, Image } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { FILE_FORMAT_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
@@ -24,18 +24,20 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
   const [url, setUrl] = useState('');
   const [fileType, setFileType] = useState<'PDF' | 'PNG' | 'DOC' | 'SLIDES' | 'LINK'>('PDF');
   
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [localFileName, setLocalFileName] = useState<string | null>(null);
   const [localFileSize, setLocalFileSize] = useState<string | null>(null);
   const [localFileData, setLocalFileData] = useState<string | null>(null);
-  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const classSubs = localStore.getSubjects(profile?.classId || '');
-      setSubjects(classSubs);
-      if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
-        setSubject(classSubs[0].name);
-      }
+      timetableAdapter.getSubjects(profile?.classId || '').then((classSubs) => {
+        setSubjects(classSubs);
+        if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
+          setSubject(classSubs[0].name);
+        }
+      });
     }
   }, [isOpen, profile?.classId]);
 
@@ -45,6 +47,7 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedFile(file);
     const isPdf = file.type === 'application/pdf' || file.name.endsWith('.pdf');
     const isImage = file.type.startsWith('image/');
 
@@ -62,49 +65,57 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
       setTitle(cleanName);
     }
 
-    setIsReadingFile(true);
+    // Keep base64 only as local fallback
     const reader = new FileReader();
     reader.onload = () => {
       setLocalFileData(reader.result as string);
-      setIsReadingFile(false);
-    };
-    reader.onerror = () => {
-      alert('Errore nella lettura del file locale.');
-      setIsReadingFile(false);
     };
     reader.readAsDataURL(file);
   };
 
   const handleClearFile = () => {
+    setSelectedFile(null);
     setLocalFileName(null);
     setLocalFileSize(null);
     setLocalFileData(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) return;
 
-    localStore.addMaterial({
-      subject,
-      title,
-      description,
-      url: url || undefined,
-      fileData: localFileData || undefined,
-      fileName: localFileName || undefined,
-      fileSize: localFileSize || undefined,
-      fileType,
-      date: new Date().toISOString().split('T')[0],
-      authorName: `${profile.firstName} ${profile.lastName}`
-    });
+    try {
+      setIsUploading(true);
+      await materialsAdapter.uploadAndAddMaterial(
+        {
+          subject,
+          title,
+          description,
+          url: url || undefined,
+          fileData: localFileData || undefined,
+          fileName: localFileName || undefined,
+          fileSize: localFileSize || undefined,
+          fileType,
+          date: new Date().toISOString().split('T')[0],
+          authorName: `${profile.firstName} ${profile.lastName}`,
+          classId: profile.classId || undefined
+        },
+        selectedFile,
+        profile.uid
+      );
 
-    setTitle('');
-    setDescription('');
-    setUrl('');
-    handleClearFile();
-    onCreated?.();
-    onClose();
+      setTitle('');
+      setDescription('');
+      setUrl('');
+      handleClearFile();
+      onCreated?.();
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Errore nel salvataggio del materiale.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const subjectOptions: SelectOption[] = subjects.map(formatSubjectToOption);
@@ -170,7 +181,7 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
                       {localFileName}
                     </p>
                     <p className="text-[11px] text-cyan-700 font-medium">
-                      {fileType} · {localFileSize} {isReadingFile && '(Caricamento...)'}
+                      {fileType} · {localFileSize} {isUploading && '(Caricamento su Cloud...)'}
                     </p>
                   </div>
                 </div>
@@ -255,10 +266,10 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
             </button>
             <button
               type="submit"
-              disabled={isReadingFile}
+              disabled={isUploading}
               className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50 cursor-pointer"
             >
-              Pubblica Dispensa
+              {isUploading ? 'Caricamento...' : 'Pubblica Dispensa'}
             </button>
           </div>
         </form>

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { timetableAdapter } from '../services/adapters';
 import { TimetableSlot, SubjectItem } from '../types';
 import { getSubjectStyle } from '../utils/theme';
 import { FormSelect } from '../components/ui/FormSelect';
@@ -16,8 +16,8 @@ import { SubjectManagerModal } from '../components/SubjectManagerModal';
 
 export const TimetablePage: React.FC = () => {
   const { profile, isController, isAdmin } = useAuth();
-  const [timetable, setTimetable] = useState<TimetableSlot[]>(localStore.getTimetable());
-  const [subjects, setSubjects] = useState<SubjectItem[]>(localStore.getSubjects(profile?.classId || ''));
+  const [timetable, setTimetable] = useState<TimetableSlot[]>([]);
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -57,30 +57,46 @@ export const TimetablePage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const syncData = () => {
-    setTimetable(localStore.getTimetable());
-    setSubjects(localStore.getSubjects(profile?.classId || ''));
+  const syncData = async () => {
+    try {
+      const [slots, subs] = await Promise.all([
+        timetableAdapter.getTimetable(profile?.classId || undefined),
+        timetableAdapter.getSubjects(profile?.classId || undefined)
+      ]);
+      setTimetable(slots);
+      setSubjects(subs);
+    } catch {
+      // Fallback
+    }
   };
 
   useEffect(() => {
     syncData();
-    const unsub = localStore.subscribe(syncData);
-    return () => unsub();
   }, [profile]);
 
-  const handleSaveSlot = (slot: TimetableSlot) => {
-    localStore.updateTimetableSlot(slot);
-    setEditingSlot(null);
-    setIsNewSlot(false);
-    showToast('Orario aggiornato con successo!');
-  };
-
-  const handleDeleteSlot = (id: string) => {
-    if (confirm('Rimuovere questa lezione dall\'orario?')) {
-      localStore.deleteTimetableSlot(id);
+  const handleSaveSlot = async (slot: TimetableSlot) => {
+    try {
+      await timetableAdapter.updateTimetableSlot(slot, profile?.classId || undefined);
       setEditingSlot(null);
       setIsNewSlot(false);
-      showToast('Lezione rimossa dall\'orario');
+      showToast('Orario aggiornato con successo!');
+      await syncData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore nell\'aggiornamento dell\'orario');
+    }
+  };
+
+  const handleDeleteSlot = async (id: string) => {
+    if (confirm('Rimuovere questa lezione dall\'orario?')) {
+      try {
+        await timetableAdapter.deleteTimetableSlot(id);
+        setEditingSlot(null);
+        setIsNewSlot(false);
+        showToast('Lezione rimossa dall\'orario');
+        await syncData();
+      } catch (err: any) {
+        showToast(err.message || 'Errore nella rimozione');
+      }
     }
   };
 
@@ -159,13 +175,19 @@ export const TimetablePage: React.FC = () => {
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           
-          {/* Button: Gestione Materie */}
+          {/* Button: Gestione / Visualizzazione Materie */}
           <button
             onClick={() => setIsSubjectModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-bold transition shadow-2xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-bold transition shadow-2xs cursor-pointer"
+            title={isController ? "Apri l'Editor Materie di Classe" : "Visualizza le Materie della Classe"}
           >
             <BookOpen className="w-4 h-4" />
-            <span>Editor Materie ({subjects.length})</span>
+            <span>{isController ? `Editor Materie (${subjects.length})` : `Materie (${subjects.length})`}</span>
+            {isController && (
+              <span className="text-[10px] bg-indigo-200/80 text-indigo-900 px-1.5 py-0.2 rounded font-black">
+                {isAdmin ? 'Admin' : 'Controller'}
+              </span>
+            )}
           </button>
 
           {/* View Switcher Pills */}
@@ -248,16 +270,18 @@ export const TimetablePage: React.FC = () => {
                                       {slot.subject}
                                     </span>
 
-                                    <button
-                                      onClick={() => {
-                                        setEditingSlot(slot);
-                                        setIsNewSlot(false);
-                                      }}
-                                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-indigo-600 rounded bg-white/80 transition"
-                                      title="Modifica"
-                                    >
-                                      <Edit3 className="w-3 h-3" />
-                                    </button>
+                                    {isController && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingSlot(slot);
+                                          setIsNewSlot(false);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-indigo-600 rounded bg-white/80 transition cursor-pointer"
+                                        title="Modifica"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                    )}
                                   </div>
 
                                   {slot.teacher && (
@@ -275,13 +299,19 @@ export const TimetablePage: React.FC = () => {
                                 )}
                               </div>
                             ) : (
-                              <button
-                                onClick={() => handleOpenAddSlot(d.num, hr.num)}
-                                className="w-full h-full rounded-2xl border border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 flex flex-col items-center justify-center text-[10px] text-slate-300 hover:text-indigo-600 transition group cursor-pointer"
-                              >
-                                <Plus className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition" />
-                                <span className="group-hover:font-semibold">Aggiungi</span>
-                              </button>
+                              isController ? (
+                                <button
+                                  onClick={() => handleOpenAddSlot(d.num, hr.num)}
+                                  className="w-full h-full rounded-2xl border border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 flex flex-col items-center justify-center text-[10px] text-slate-300 hover:text-indigo-600 transition group cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition" />
+                                  <span className="group-hover:font-semibold">Aggiungi</span>
+                                </button>
+                              ) : (
+                                <div className="w-full h-full rounded-2xl border border-slate-100 bg-slate-50/30 flex items-center justify-center text-[10px] text-slate-300">
+                                  —
+                                </div>
+                              )
                             )}
                           </td>
                         );
@@ -294,13 +324,19 @@ export const TimetablePage: React.FC = () => {
           </div>
 
           <div className="p-3.5 bg-slate-50 border-t border-slate-200/80 text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-2">
-            <span>Clicca su qualsiasi casella per modificare o aggiungere una materia all'orario.</span>
-            <button
-              onClick={() => setIsSubjectModalOpen(true)}
-              className="text-indigo-600 font-bold hover:underline"
-            >
-              + Personalizza Materie e Colori
-            </button>
+            <span>
+              {isController 
+                ? 'Clicca su qualsiasi casella per modificare o aggiungere una materia all\'orario.'
+                : 'Quadro orario ufficiale della classe.'}
+            </span>
+            {isController && (
+              <button
+                onClick={() => setIsSubjectModalOpen(true)}
+                className="text-indigo-600 font-bold hover:underline cursor-pointer"
+              >
+                + Personalizza Materie e Colori
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -334,12 +370,14 @@ export const TimetablePage: React.FC = () => {
             {currentDaySlots.length === 0 ? (
               <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400">
                 <p className="text-sm font-semibold">Nessuna lezione programmata per questo giorno.</p>
-                <button
-                  onClick={() => handleOpenAddSlot(activeDay, 1)}
-                  className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition"
-                >
-                  + Aggiungi 1ª Ora
-                </button>
+                {isController && (
+                  <button
+                    onClick={() => handleOpenAddSlot(activeDay, 1)}
+                    className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition cursor-pointer"
+                  >
+                    + Aggiungi 1ª Ora
+                  </button>
+                )}
               </div>
             ) : (
               currentDaySlots.map(slot => {
@@ -389,16 +427,18 @@ export const TimetablePage: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setEditingSlot(slot);
-                        setIsNewSlot(false);
-                      }}
-                      className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition"
-                      title="Modifica ora"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
+                    {isController && (
+                      <button
+                        onClick={() => {
+                          setEditingSlot(slot);
+                          setIsNewSlot(false);
+                        }}
+                        className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition cursor-pointer"
+                        title="Modifica ora"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 );
               })

@@ -4,7 +4,7 @@ import {
   Trash2, Search
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { noticesAdapter } from '../services/adapters';
 import { Notice } from '../types';
 import { CreateNoticeModal } from '../components/CreateNoticeModal';
 import { FormSelect } from '../components/ui/FormSelect';
@@ -22,21 +22,29 @@ export const NoticesPage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!profile) return;
-    setNotices(localStore.getNotices(profile.classId || ''));
+    try {
+      const list = await noticesAdapter.getNotices(profile.classId || '');
+      setNotices(list);
+    } catch {
+      // Fallback
+    }
   };
 
   useEffect(() => {
     loadData();
-    const unsub = localStore.subscribe(loadData);
-    return () => unsub();
   }, [profile]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!isController && !isAdmin) return;
-    localStore.deleteNotice(id);
-    showToast('Avviso eliminato');
+    try {
+      await noticesAdapter.deleteNotice(id);
+      showToast('Avviso eliminato');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore durante l\'eliminazione');
+    }
   };
 
   const priorityOptions = [

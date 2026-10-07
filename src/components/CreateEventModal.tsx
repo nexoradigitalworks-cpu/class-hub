@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { eventsAdapter, timetableAdapter } from '../services/adapters';
 import { X, Lock, Users } from 'lucide-react';
 import { ActivityTypeCategory, SubjectItem } from '../types';
 import { FormSelect } from './ui/FormSelect';
@@ -38,11 +38,12 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const classSubs = localStore.getSubjects(profile?.classId || '');
-      setSubjects(classSubs);
-      if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
-        setSubject(classSubs[0].name);
-      }
+      timetableAdapter.getSubjects(profile?.classId || '').then((classSubs) => {
+        setSubjects(classSubs);
+        if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
+          setSubject(classSubs[0].name);
+        }
+      });
     }
   }, [isOpen, profile?.classId]);
 
@@ -70,31 +71,36 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
 
     const enforcedPersonal = canCreateClassEvent ? isPersonal : true;
 
-    localStore.addEvent({
-      title,
-      subject: enforcedPersonal ? `Personale (${PERSONAL_CATEGORIES.find(c => c.value === personalCategory)?.label || 'Impegno'})` : subject,
-      type: enforcedPersonal ? 'PERSONALE' : type,
-      date,
-      startTime,
-      endTime,
-      teacher: enforcedPersonal ? undefined : (teacher || undefined),
-      description: description || undefined,
-      isPersonal: enforcedPersonal,
-      authorId: profile.uid,
-      authorName: `${profile.firstName} ${profile.lastName}`
-    });
+    try {
+      await eventsAdapter.addEvent({
+        title,
+        subject: enforcedPersonal ? `Personale (${PERSONAL_CATEGORIES.find(c => c.value === personalCategory)?.label || 'Impegno'})` : subject,
+        type: enforcedPersonal ? 'PERSONALE' : type,
+        date,
+        startTime,
+        endTime,
+        teacher: enforcedPersonal ? undefined : (teacher || undefined),
+        description: description || undefined,
+        isPersonal: enforcedPersonal,
+        authorId: profile.uid,
+        authorName: `${profile.firstName} ${profile.lastName}`,
+        classId: enforcedPersonal ? undefined : (profile.classId || undefined)
+      });
 
-    setTitle('');
-    setDescription('');
-    setTeacher('');
-    onCreated?.();
-    onClose();
+      setTitle('');
+      setDescription('');
+      setTeacher('');
+      onCreated?.();
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Errore durante il salvataggio dell\'evento.');
+    }
   };
 
   const subjectOptions: SelectOption[] = subjects.map(formatSubjectToOption);

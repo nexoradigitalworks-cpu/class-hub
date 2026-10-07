@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { noticesAdapter } from '../services/adapters';
 import { X, Bell } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { PRIORITY_OPTIONS } from '../utils/dropdownPresets';
@@ -20,22 +20,27 @@ export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
 
   if (!isOpen || !profile) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !content) return;
 
-    localStore.addNotice({
-      title,
-      content,
-      priority,
-      date,
-      authorName: `${profile.firstName} ${profile.lastName} (${profile.role === 'ADMIN' ? 'Admin' : 'Controller'})`
-    });
+    try {
+      await noticesAdapter.addNotice({
+        title,
+        content,
+        priority,
+        date,
+        authorName: `${profile.firstName} ${profile.lastName} (${profile.role === 'ADMIN' ? 'Admin' : 'Controller'})`,
+        classId: profile.classId || undefined
+      }, profile.uid);
 
-    setTitle('');
-    setContent('');
-    onCreated?.();
-    onClose();
+      setTitle('');
+      setContent('');
+      onCreated?.();
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Errore nella pubblicazione dell\'avviso.');
+    }
   };
 
   return (

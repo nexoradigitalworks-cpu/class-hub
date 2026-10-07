@@ -2,22 +2,24 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   GraduationCap, Eye, EyeOff, Loader2, AlertCircle, 
-  CheckCircle2, ArrowRight, ArrowLeft, Mail, Lock, User
+  CheckCircle2, ArrowRight, ArrowLeft, Mail, Lock, User,
+  Zap, ShieldCheck, UserCog, Terminal, Sparkles, KeyRound
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PREDEFINED_AVATARS } from '../utils/theme';
 import { AvatarIcon } from '../components/AvatarIcon';
+import { ClassHubLogo } from '../components/ClassHubLogo';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 type AuthMode = 'login' | 'register' | 'forgot_password';
 
 export const AuthPage: React.FC = () => {
-  const { loginWithEmail, registerWithEmail, loginWithGoogle, resetPassword } = useAuth();
+  const { loginWithEmail, loginAsDeveloper, registerWithEmail, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
@@ -37,25 +39,57 @@ export const AuthPage: React.FC = () => {
   const parseAuthError = (err: any): string => {
     const code = err?.code || '';
     const message = err?.message || '';
+    const lowerMessage = message.toLowerCase();
 
-    if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') {
+    // Supabase Auth error patterns
+    if (
+      code === 'invalid_credentials' ||
+      lowerMessage.includes('invalid login credentials') ||
+      lowerMessage.includes('invalid credentials') ||
+      code === 'auth/invalid-credential' ||
+      code === 'auth/user-not-found' ||
+      code === 'auth/wrong-password'
+    ) {
       return 'Email o password non corrette.';
     }
-    if (code === 'auth/email-already-in-use') {
-      return 'Esiste già un account registrato con questa email.';
+
+    if (
+      code === 'user_already_exists' ||
+      lowerMessage.includes('already registered') ||
+      lowerMessage.includes('user already registered') ||
+      code === 'auth/email-already-in-use'
+    ) {
+      return 'Esiste già un account registrato con questa email. Effettua il login o recupera la password.';
     }
-    if (code === 'auth/invalid-email') {
-      return 'Inserisci un indirizzo email valido.';
-    }
-    if (code === 'auth/weak-password') {
+
+    if (
+      code === 'weak_password' ||
+      lowerMessage.includes('password should be at least') ||
+      code === 'auth/weak-password'
+    ) {
       return 'La password deve contenere almeno 6 caratteri.';
     }
-    if (code === 'auth/popup-closed-by-user') {
-      return 'Accesso con Google annullato.';
+
+    if (
+      lowerMessage.includes('rate limit') ||
+      lowerMessage.includes('over_email_send_rate_limit') ||
+      lowerMessage.includes('too many requests')
+    ) {
+      return 'Limite di tentativi raggiunto. Attendi qualche minuto prima di riprovare.';
     }
-    if (message.includes('network')) {
-      return 'Errore di connessione. Controlla la rete e riprova.';
+
+    if (
+      code === 'validation_failed' ||
+      code === 'auth/invalid-email' ||
+      lowerMessage.includes('invalid email')
+    ) {
+      return 'Inserisci un indirizzo email valido.';
     }
+
+    if (lowerMessage.includes('network') || lowerMessage.includes('fetch')) {
+      return 'Errore di connessione al server. Controlla la rete e riprova.';
+    }
+
     return message || 'Non è stato possibile completare l\'operazione. Riprova.';
   };
 
@@ -107,18 +141,6 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    clearErrors();
-    try {
-      setGoogleLoading(true);
-      await loginWithGoogle();
-    } catch (err: any) {
-      setError(parseAuthError(err));
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
@@ -155,8 +177,24 @@ export const AuthPage: React.FC = () => {
           
           {/* Header Brand */}
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-13 h-13 rounded-2xl bg-[#2563EB] text-white shadow-md shadow-blue-500/25 mb-4">
-              <GraduationCap className="w-7 h-7" />
+            <div className="flex justify-center mb-4">
+              <ClassHubLogo size="lg" />
+            </div>
+
+            {/* Backend Environment Status Badge */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold mb-3 border select-none transition-colors"
+              style={{
+                backgroundColor: isSupabaseConfigured ? '#ECFDF5' : '#FFFBEB',
+                borderColor: isSupabaseConfigured ? '#A7F3D0' : '#FDE68A',
+                color: isSupabaseConfigured ? '#065F46' : '#92400E'
+              }}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span>
+                {isSupabaseConfigured
+                  ? 'Cloud Database Supabase Connesso'
+                  : 'Modalità Demo & Test Locale Attiva'}
+              </span>
             </div>
             
             <AnimatePresence mode="wait">
@@ -258,7 +296,7 @@ export const AuthPage: React.FC = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="m.rossi@liceo.edu.it"
                     required
-                    disabled={loading || googleLoading}
+                    disabled={loading}
                     className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                   <Mail className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
@@ -288,7 +326,7 @@ export const AuthPage: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    disabled={loading || googleLoading}
+                    disabled={loading}
                     className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                   <button
@@ -304,7 +342,7 @@ export const AuthPage: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={loading || googleLoading}
+                disabled={loading}
                 className="w-full py-2.5 px-4 bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] text-white font-semibold rounded-xl text-sm transition shadow-sm shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:pointer-events-none"
               >
                 {loading ? (
@@ -332,7 +370,7 @@ export const AuthPage: React.FC = () => {
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="Marco"
                     required
-                    disabled={loading || googleLoading}
+                    disabled={loading}
                     className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                 </div>
@@ -346,7 +384,7 @@ export const AuthPage: React.FC = () => {
                     onChange={(e) => setLastName(e.target.value)}
                     placeholder="Rossi"
                     required
-                    disabled={loading || googleLoading}
+                    disabled={loading}
                     className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                 </div>
@@ -362,7 +400,7 @@ export const AuthPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="m.rossi@liceo.edu.it"
                   required
-                  disabled={loading || googleLoading}
+                  disabled={loading}
                   className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 />
               </div>
@@ -378,7 +416,7 @@ export const AuthPage: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Almeno 6 caratteri"
                     required
-                    disabled={loading || googleLoading}
+                    disabled={loading}
                     className="w-full pl-3 pr-10 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                   <button
@@ -403,7 +441,7 @@ export const AuthPage: React.FC = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Ripeti password"
                     required
-                    disabled={loading || googleLoading}
+                    disabled={loading}
                     className="w-full pl-3 pr-10 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                   />
                   <button
@@ -446,7 +484,7 @@ export const AuthPage: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={loading || googleLoading}
+                disabled={loading}
                 className="w-full mt-2 py-2.5 px-4 bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] text-white font-semibold rounded-xl text-sm transition shadow-sm shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:pointer-events-none"
               >
                 {loading ? (
@@ -510,126 +548,213 @@ export const AuthPage: React.FC = () => {
             </form>
           )}
 
-          {/* Social Divider & Google Auth (Only for login & register) */}
+          {/* Bottom Switcher (Only for login & register) */}
           {mode !== 'forgot_password' && (
-            <>
-              <div className="relative my-5">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200" />
-                </div>
-                <div className="relative flex justify-center text-[11px] uppercase tracking-wider font-semibold">
-                  <span className="bg-white px-3 text-slate-400">oppure</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={loading || googleLoading}
-                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 active:scale-[0.99] border border-slate-200/90 text-slate-700 font-semibold rounded-xl text-sm transition shadow-2xs flex items-center justify-center gap-3 cursor-pointer disabled:opacity-70 disabled:pointer-events-none"
-              >
-                {googleLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
-                    <span>Connessione con Google...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                      />
-                    </svg>
-                    <span>Continua con Google</span>
-                  </>
-                )}
-              </button>
-
-              {/* Bottom Switcher */}
-              <div className="mt-5 text-center">
-                {mode === 'login' ? (
-                  <p className="text-xs text-slate-500 font-medium">
-                    Non hai ancora un account?{' '}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearErrors();
-                        setMode('register');
-                      }}
-                      className="font-bold text-[#2563EB] hover:text-blue-700 transition ml-1"
-                    >
-                      Crea account
-                    </button>
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-500 font-medium">
-                    Hai già un account?{' '}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearErrors();
-                        setMode('login');
-                      }}
-                      className="font-bold text-[#2563EB] hover:text-blue-700 transition ml-1"
-                    >
-                      Accedi
-                    </button>
-                  </p>
-                )}
-              </div>
-            </>
+            <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+              {mode === 'login' ? (
+                <p className="text-xs text-slate-500 font-medium">
+                  Non hai ancora un account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearErrors();
+                      setMode('register');
+                    }}
+                    className="font-bold text-[#2563EB] hover:text-blue-700 transition ml-1"
+                  >
+                    Crea account
+                  </button>
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 font-medium">
+                  Hai già un account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearErrors();
+                      setMode('login');
+                    }}
+                    className="font-bold text-[#2563EB] hover:text-blue-700 transition ml-1"
+                  >
+                    Accedi
+                  </button>
+                </p>
+              )}
+            </div>
           )}
 
         </div>
 
-        {/* Developer Test Suite Quick-Fill Card */}
-        <div className="mt-4 p-4 rounded-2xl bg-white/80 backdrop-blur-xs border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Account di Sviluppo & Test (DEVTEST)
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setEmail('developer.test@classhub.edu');
-              setPassword('ClassHub2026!Test');
-              clearErrors();
-            }}
-            className="w-full p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-left transition flex items-center justify-between cursor-pointer"
-          >
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-900">developer.test@classhub.edu</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
-                  Developer Mode
+        {/* Developer & Test Suite Quick-Access Card */}
+        <div className="mt-5 p-4 rounded-3xl bg-white/90 backdrop-blur-md border border-amber-200/90 shadow-lg shadow-amber-500/5">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-amber-100/80">
+            <div className="flex items-center gap-2">
+              <div className="p-1 rounded-lg bg-amber-500 text-white shadow-2xs">
+                <Terminal className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">
+                  Area Sviluppo & Test
+                </span>
+                <span className="text-[10px] text-amber-800/80 font-medium block">
+                  Accesso istantaneo 1-Click con dati precaricati (DEVTEST)
                 </span>
               </div>
-              <span className="text-[11px] text-slate-500 block mt-0.5">
-                Classe tester: <strong className="font-semibold text-slate-700">ClassHub — Developer Test (DEVTEST)</strong>
-              </span>
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600" />
-          </button>
+            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+              DEV READY
+            </span>
+          </div>
+
+          {/* 1-Click Instant Master Login */}
+          <div className="space-y-2">
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200/80">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-black text-slate-900">👑 Developer / Admin Master</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800">
+                      Tutti i permessi
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-mono mt-0.5 truncate">
+                    developer.test@classhub.edu
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    Password: <span className="font-semibold text-slate-600">ClassHub2026!Test</span> (o 1-Click)
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-amber-200/60">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    clearErrors();
+                    try {
+                      setLoading(true);
+                      await loginAsDeveloper('developer');
+                    } catch (err: any) {
+                      setError(err.message || 'Errore accesso developer');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl text-xs transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  title="Accedi istantaneamente come Admin con tutti i poteri e switch ruoli"
+                >
+                  <Zap className="w-3.5 h-3.5 fill-current" />
+                  <span>Accedi 1-Click</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('developer.test@classhub.edu');
+                    setPassword('ClassHub2026!Test');
+                    clearErrors();
+                    setMode('login');
+                  }}
+                  className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Compila i campi del form per testare il form di login"
+                >
+                  <KeyRound className="w-3 h-3 text-slate-400" />
+                  <span>Compila Form</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-presets: Controller & Student */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={async () => {
+                  clearErrors();
+                  try {
+                    setLoading(true);
+                    await loginAsDeveloper('controller');
+                  } catch (err: any) {
+                    setError(err.message || 'Errore accesso controller');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50/80 border border-slate-200 hover:border-blue-200 text-left transition cursor-pointer flex flex-col justify-between group disabled:opacity-60"
+              >
+                <div className="flex items-center gap-1 text-[11px] font-bold text-blue-900">
+                  <UserCog className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Rappresentante</span>
+                </div>
+                <span className="text-[10px] text-slate-500 truncate block mt-0.5">
+                  sofia.bianchi@...
+                </span>
+                <span className="text-[10px] font-bold text-blue-600 group-hover:underline mt-1.5 inline-flex items-center gap-0.5">
+                  Accedi 1-Click →
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={async () => {
+                  clearErrors();
+                  try {
+                    setLoading(true);
+                    await loginAsDeveloper('student');
+                  } catch (err: any) {
+                    setError(err.message || 'Errore accesso studente');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200 hover:border-slate-300 text-left transition cursor-pointer flex flex-col justify-between group disabled:opacity-60"
+              >
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-800">
+                  <User className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Studente</span>
+                </div>
+                <span className="text-[10px] text-slate-500 truncate block mt-0.5">
+                  marco.rossi@...
+                </span>
+                <span className="text-[10px] font-bold text-slate-700 group-hover:underline mt-1.5 inline-flex items-center gap-0.5">
+                  Accedi 1-Click →
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Minimal Footer */}
-        <p className="text-center text-[11px] text-slate-400 mt-4 font-medium">
-          ClassHub — Sistema sicuro di gestione classe scolastica
-        </p>
+        {/* Minimal Footer & Legal Links */}
+        <div className="mt-4 text-center space-y-2">
+          <p className="text-[11px] text-slate-400 font-medium">
+            ClassHub — Sistema sicuro di gestione classe scolastica
+          </p>
+          <div className="flex items-center justify-center gap-3 text-xs text-slate-400">
+            <button
+              type="button"
+              onClick={() => {
+                window.history.pushState({}, '', '/privacy');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="hover:text-slate-700 underline-offset-2 hover:underline transition cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-slate-300">•</span>
+            <button
+              type="button"
+              onClick={() => {
+                window.history.pushState({}, '', '/terms');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="hover:text-slate-700 underline-offset-2 hover:underline transition cursor-pointer"
+            >
+              Termini di Servizio
+            </button>
+          </div>
+        </div>
       </div>
 
     </div>

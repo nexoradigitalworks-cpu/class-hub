@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { interrogationsAdapter, timetableAdapter } from '../services/adapters';
 import { X, Clock } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { MAX_VOLUNTEERS_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
@@ -34,14 +34,15 @@ export const CreateInterrogationModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const classSubs = localStore.getSubjects(profile?.classId || '');
-      setSubjects(classSubs);
-      if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
-        setSubject(classSubs[0].name);
-        if (classSubs[0].defaultTeacher && !teacher) {
-          setTeacher(classSubs[0].defaultTeacher);
+      timetableAdapter.getSubjects(profile?.classId || '').then((classSubs) => {
+        setSubjects(classSubs);
+        if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
+          setSubject(classSubs[0].name);
+          if (classSubs[0].defaultTeacher && !teacher) {
+            setTeacher(classSubs[0].defaultTeacher);
+          }
         }
-      }
+      });
     }
   }, [isOpen, profile?.classId]);
 
@@ -55,26 +56,34 @@ export const CreateInterrogationModal: React.FC<Props> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
 
-    localStore.addInterrogation({
-      title,
-      subject,
-      date,
-      startTime,
-      endTime,
-      maxVolunteers: Number(maxVolunteers) || 3,
-      teacher: teacher || undefined,
-      notes: notes || undefined
-    });
+    try {
+      await interrogationsAdapter.createInterrogation(
+        {
+          title,
+          subject,
+          date,
+          startTime,
+          endTime,
+          maxVolunteers: Number(maxVolunteers) || 3,
+          teacher: teacher || undefined,
+          notes: notes || undefined,
+          classId: profile.classId || undefined
+        },
+        profile.uid
+      );
 
-    setTitle('');
-    setNotes('');
-    setTeacher('');
-    onCreated?.();
-    onClose();
+      setTitle('');
+      setNotes('');
+      setTeacher('');
+      onCreated?.();
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Errore nella creazione dell\'interrogazione.');
+    }
   };
 
   const subjectOptions: SelectOption[] = subjects.map(formatSubjectToOption);

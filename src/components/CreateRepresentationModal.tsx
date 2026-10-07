@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { representationAdapter } from '../services/adapters';
 import { X, Landmark } from 'lucide-react';
 import { RepresentationItem } from '../types';
 import { FormSelect } from './ui/FormSelect';
@@ -20,23 +20,28 @@ export const CreateRepresentationModal: React.FC<Props> = ({ isOpen, onClose, on
 
   if (!isOpen || !profile) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) return;
 
-    localStore.addRepresentationItem({
-      category,
-      title,
-      description,
-      status: 'IN_CORSO',
-      date: new Date().toISOString().split('T')[0],
-      authorName: `${profile.firstName} ${profile.lastName}`
-    });
+    try {
+      await representationAdapter.addRepresentationItem({
+        category,
+        title,
+        description,
+        status: 'IN_CORSO',
+        date: new Date().toISOString().split('T')[0],
+        authorName: `${profile.firstName} ${profile.lastName}`,
+        classId: profile.classId || undefined
+      }, profile.uid);
 
-    setTitle('');
-    setDescription('');
-    onCreated?.();
-    onClose();
+      setTitle('');
+      setDescription('');
+      onCreated?.();
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Errore nella creazione della richiesta.');
+    }
   };
 
   return (

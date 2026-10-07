@@ -14,46 +14,125 @@ import { RepresentationPage } from './pages/RepresentationPage';
 import { ClassControlPage } from './pages/ClassControlPage';
 import { AuthPage } from './pages/AuthPage';
 import { ClassOnboardingPage } from './pages/ClassOnboardingPage';
-import { localStore } from './services/dataStore';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
+import { ClassHubLogo } from './components/ClassHubLogo';
+import { UpdatePasswordModal } from './components/UpdatePasswordModal';
+import { interrogationsAdapter, noticesAdapter, surveysAdapter } from './services/adapters';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { GraduationCap, Loader2, X } from 'lucide-react';
+
+const getLegalRoute = (): 'privacy' | 'terms' | null => {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  if (path === '/privacy' || hash === '#/privacy' || hash === '#privacy') return 'privacy';
+  if (path === '/terms' || hash === '#/terms' || hash === '#terms') return 'terms';
+  return null;
+};
 
 function AppContent() {
   const { currentUser, profile, loading } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavigationTab>('calendario');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [legalRoute, setLegalRoute] = useState<'privacy' | 'terms' | null>(getLegalRoute());
+  const [isPasswordRecoveryActive, setIsPasswordRecoveryActive] = useState(false);
+  const [pendingClassCelebration, setPendingClassCelebration] = useState<{
+    classId: string;
+    code: string;
+    name: string;
+  } | null>(null);
   const [counts, setCounts] = useState({
     interrogationsCount: 0,
     noticesCount: 0,
     surveysCount: 0
   });
 
-  const updateCounts = () => {
-    if (!profile?.classId) return;
-    const inters = localStore.getInterrogations(profile.classId);
-    const nots = localStore.getNotices(profile.classId);
-    const surs = localStore.getSurveys(profile.classId);
+  // Listen for Supabase password recovery events & URL recovery tokens
+  useEffect(() => {
+    // 1. Check URL parameters and hash for recovery indicators
+    const checkUrlForRecovery = () => {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      if (
+        hash.includes('type=recovery') ||
+        hash.includes('access_token=') ||
+        search.includes('reset=true') ||
+        search.includes('type=recovery')
+      ) {
+        setIsPasswordRecoveryActive(true);
+      }
+    };
+    checkUrlForRecovery();
 
-    setCounts({
-      interrogationsCount: inters.filter(i => i.status === 'OPEN').length,
-      noticesCount: nots.filter(n => n.priority === 'HIGH').length,
-      surveysCount: surs.filter(s => s.status === 'OPEN').length
-    });
+    // 2. Listen for Supabase PASSWORD_RECOVERY auth event
+    if (isSupabaseConfigured && supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecoveryActive(true);
+        }
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setLegalRoute(getLegalRoute());
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    setLegalRoute(getLegalRoute());
+  };
+
+  const updateCounts = async () => {
+    if (!profile?.classId) return;
+    try {
+      const [inters, nots, surs] = await Promise.all([
+        interrogationsAdapter.getInterrogations(profile.classId),
+        noticesAdapter.getNotices(profile.classId),
+        surveysAdapter.getSurveys(profile.classId)
+      ]);
+
+      setCounts({
+        interrogationsCount: inters.filter(i => i.status === 'OPEN').length,
+        noticesCount: nots.filter(n => n.priority === 'HIGH').length,
+        surveysCount: surs.filter(s => s.status === 'OPEN').length
+      });
+    } catch {
+      // Fallback
+    }
   };
 
   useEffect(() => {
     updateCounts();
-    const unsub = localStore.subscribe(updateCounts);
-    return () => unsub();
   }, [profile?.classId]);
+
+  // 0. Public Legal Pages (Accessible without authentication)
+  if (legalRoute === 'privacy') {
+    return <PrivacyPage onBack={() => navigateTo('/')} />;
+  }
+  if (legalRoute === 'terms') {
+    return <TermsPage onBack={() => navigateTo('/')} />;
+  }
 
   // 1. Loading State
   if (loading) {
     return (
       <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#2563EB] flex items-center justify-center text-white shadow-md shadow-blue-500/25 animate-pulse">
-            <GraduationCap className="w-6 h-6" />
-          </div>
+        <div className="flex flex-col items-center gap-4">
+          <ClassHubLogo size="xl" className="animate-pulse" />
           <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold">
             <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" />
             <span>Caricamento ClassHub...</span>
@@ -65,17 +144,55 @@ function AppContent() {
 
   // 2. Unauthenticated User -> Login / Register Screen
   if (!currentUser) {
-    return <AuthPage />;
+    return (
+      <>
+        <AuthPage />
+        {isPasswordRecoveryActive && (
+          <UpdatePasswordModal
+            onSuccess={() => {
+              setIsPasswordRecoveryActive(false);
+              window.history.replaceState({}, '', '/');
+            }}
+          />
+        )}
+      </>
+    );
   }
 
-  // 3. Authenticated User without Class -> Class Onboarding (Join or Create)
-  if (!profile?.classId) {
-    return <ClassOnboardingPage />;
+  // 3. Authenticated User without Class (or pending class creation celebration) -> Class Onboarding
+  if (!profile?.classId || pendingClassCelebration) {
+    return (
+      <>
+        <ClassOnboardingPage
+          initialSuccessInfo={pendingClassCelebration}
+          onClassCreated={(info) => setPendingClassCelebration(info)}
+          onComplete={() => setPendingClassCelebration(null)}
+        />
+        {isPasswordRecoveryActive && (
+          <UpdatePasswordModal
+            onSuccess={() => {
+              setIsPasswordRecoveryActive(false);
+              window.history.replaceState({}, '', '/');
+            }}
+          />
+        )}
+      </>
+    );
   }
 
   // 4. Authenticated User with Class -> Full ClassHub Workspace (Default Home: Calendario)
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F5F7FB] text-[#0F172A] font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
+      
+      {/* Update Password Modal from email reset flow */}
+      {isPasswordRecoveryActive && (
+        <UpdatePasswordModal
+          onSuccess={() => {
+            setIsPasswordRecoveryActive(false);
+            window.history.replaceState({}, '', '/');
+          }}
+        />
+      )}
       
       {/* Top Role & Status Banner */}
       <RoleSwitchBanner />
@@ -135,7 +252,7 @@ function AppContent() {
         </AnimatePresence>
 
         {/* Dynamic Space View (Home = Calendario) */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden pb-14 lg:pb-0">
+        <div className="flex-1 flex flex-col h-full overflow-hidden pb-20 lg:pb-0">
           {currentTab === 'calendario' && (
             <CalendarHome onOpenInterrogationsTab={() => setCurrentTab('interrogazioni')} />
           )}
@@ -154,8 +271,17 @@ function AppContent() {
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         onOpenMenu={() => setMobileMenuOpen(true)}
+        counts={counts}
       />
 
+      {isPasswordRecoveryActive && (
+        <UpdatePasswordModal
+          onSuccess={() => {
+            setIsPasswordRecoveryActive(false);
+            window.history.replaceState({}, '', '/');
+          }}
+        />
+      )}
     </div>
   );
 }

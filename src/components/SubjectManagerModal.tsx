@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Plus, Bookmark, Edit2, Trash2, Check,
-  BookOpen, Sparkles, User, MapPin
+  BookOpen, Sparkles, User, MapPin, ShieldCheck, Lock, Eye
 } from 'lucide-react';
 import { SubjectItem } from '../types';
-import { localStore } from '../services/dataStore';
+import { timetableAdapter } from '../services/adapters';
 import { COLOR_PALETTES } from '../utils/theme';
 import { FormSelect } from './ui/FormSelect';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const SubjectManagerModal: React.FC<Props> = ({
   classId,
   onSubjectChanged
 }) => {
+  const { isController, isAdmin } = useAuth();
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -41,8 +43,9 @@ export const SubjectManagerModal: React.FC<Props> = ({
   const [description, setDescription] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const loadSubjects = () => {
-    setSubjects(localStore.getSubjects(classId));
+  const loadSubjects = async () => {
+    const list = await timetableAdapter.getSubjects(classId);
+    setSubjects(list);
   };
 
   useEffect(() => {
@@ -66,6 +69,7 @@ export const SubjectManagerModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   const handleStartEdit = (sub: SubjectItem) => {
+    if (!isController) return;
     setEditingId(sub.id);
     setName(sub.name);
     setCategory(sub.category || 'SCIENTIFICA');
@@ -76,8 +80,13 @@ export const SubjectManagerModal: React.FC<Props> = ({
     setErrorMsg(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isController) {
+      setErrorMsg('Solo i Controller e gli Admin possono modificare o creare materie.');
+      return;
+    }
+
     const trimmed = name.trim();
     if (!trimmed) {
       setErrorMsg('Inserisci il nome della materia.');
@@ -91,39 +100,48 @@ export const SubjectManagerModal: React.FC<Props> = ({
       return;
     }
 
-    if (editingId) {
-      localStore.updateSubject(editingId, {
-        name: trimmed,
-        category,
-        color,
-        defaultTeacher: defaultTeacher.trim() || undefined,
-        defaultRoom: defaultRoom.trim() || undefined,
-        description: description.trim() || undefined,
-        classId
-      });
-    } else {
-      localStore.addSubject({
-        name: trimmed,
-        category,
-        color,
-        defaultTeacher: defaultTeacher.trim() || undefined,
-        defaultRoom: defaultRoom.trim() || undefined,
-        description: description.trim() || undefined,
-        classId
-      });
-    }
+    try {
+      if (editingId) {
+        await timetableAdapter.updateSubject(editingId, {
+          name: trimmed,
+          category,
+          color,
+          defaultTeacher: defaultTeacher.trim() || undefined,
+          defaultRoom: defaultRoom.trim() || undefined,
+          description: description.trim() || undefined,
+          classId
+        });
+      } else {
+        await timetableAdapter.addSubject({
+          name: trimmed,
+          category,
+          color,
+          defaultTeacher: defaultTeacher.trim() || undefined,
+          defaultRoom: defaultRoom.trim() || undefined,
+          description: description.trim() || undefined,
+          classId
+        }, classId);
+      }
 
-    loadSubjects();
-    resetForm();
-    onSubjectChanged?.();
+      await loadSubjects();
+      resetForm();
+      onSubjectChanged?.();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Errore nel salvataggio della materia.');
+    }
   };
 
-  const handleDelete = (id: string, subName: string) => {
+  const handleDelete = async (id: string, subName: string) => {
+    if (!isController) return;
     if (confirm(`Sei sicuro di voler eliminare la materia "${subName}"?`)) {
-      localStore.deleteSubject(id);
-      loadSubjects();
-      if (editingId === id) resetForm();
-      onSubjectChanged?.();
+      try {
+        await timetableAdapter.deleteSubject(id);
+        await loadSubjects();
+        if (editingId === id) resetForm();
+        onSubjectChanged?.();
+      } catch (err: any) {
+        alert(err.message || 'Errore nell\'eliminazione della materia.');
+      }
     }
   };
 
@@ -138,11 +156,22 @@ export const SubjectManagerModal: React.FC<Props> = ({
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
-                Editor Materie di Classe
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
+                  Editor Materie di Classe
+                </h3>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                  isController 
+                    ? 'bg-indigo-100 text-indigo-800' 
+                    : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {isController ? (isAdmin ? 'Admin' : 'Controller') : 'Sola Lettura'}
+                </span>
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Crea, personalizza e gestisci le materie scolastiche con palette colori, docenti e aule.
+                {isController 
+                  ? 'Crea, personalizza e gestisci le materie scolastiche con palette colori, docenti e aule.'
+                  : 'Consulta l\'elenco ufficiale delle materie scolastiche e dei relativi docenti.'}
               </p>
             </div>
           </div>
@@ -157,128 +186,148 @@ export const SubjectManagerModal: React.FC<Props> = ({
         {/* Content Body: Two columns layout on desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-6">
           
-          {/* Left Form: Add or Edit Subject */}
+          {/* Left Form: Add or Edit Subject (or Read-Only Info for Students) */}
           <div className="lg:col-span-6 bg-slate-50/80 p-5 rounded-2xl border border-slate-200/80">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>{editingId ? 'Modifica Materia' : 'Crea Nuova Materia'}</span>
-            </h4>
+            {isController ? (
+              <>
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>{editingId ? 'Modifica Materia' : 'Crea Nuova Materia'}</span>
+                </h4>
 
-            <form onSubmit={handleSubmit} className="space-y-3.5">
-              {errorMsg && (
-                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
-                  {errorMsg}
-                </div>
-              )}
+                <form onSubmit={handleSubmit} className="space-y-3.5">
+                  {errorMsg && (
+                    <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+                      {errorMsg}
+                    </div>
+                  )}
 
-              {/* Nome */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nome Materia <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Es. Informatica, Diritto, Spagnolo..."
-                  className="w-full h-10 px-3 py-2 text-xs sm:text-sm bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
-                />
-              </div>
+                  {/* Nome */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Nome Materia <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      placeholder="Es. Informatica, Diritto, Spagnolo..."
+                      className="w-full h-10 px-3 py-2 text-xs sm:text-sm bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                    />
+                  </div>
 
-              {/* Categoria */}
-              <div>
-                <FormSelect
-                  label="Area Disciplinare"
-                  value={category || 'SCIENTIFICA'}
-                  onChange={val => setCategory(val as SubjectItem['category'])}
-                  options={CATEGORY_OPTIONS}
-                  compact
-                  required
-                />
-              </div>
+                  {/* Categoria */}
+                  <div>
+                    <FormSelect
+                      label="Area Disciplinare"
+                      value={category || 'SCIENTIFICA'}
+                      onChange={val => setCategory(val as SubjectItem['category'])}
+                      options={CATEGORY_OPTIONS}
+                      compact
+                      required
+                    />
+                  </div>
 
-              {/* Color Palette Selector */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Colore Identificativo
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(COLOR_PALETTES).map(([key, pal]) => {
-                    const isSelected = color === key;
-                    return (
+                  {/* Color Palette Selector */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Colore Identificativo
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(COLOR_PALETTES).map(([key, pal]) => {
+                        const isSelected = color === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setColor(key)}
+                            className={`w-7 h-7 rounded-xl flex items-center justify-center transition border ${pal.bg} ${pal.border} ${
+                              isSelected ? 'ring-2 ring-indigo-600 ring-offset-1 scale-110 shadow-xs' : 'hover:scale-105'
+                            }`}
+                            title={pal.label}
+                          >
+                            <span className={`w-2.5 h-2.5 rounded-full ${pal.dot}`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Grid: Docente & Aula */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Docente (opz.)</label>
+                      <input
+                        type="text"
+                        value={defaultTeacher}
+                        onChange={e => setDefaultTeacher(e.target.value)}
+                        placeholder="Es. Prof. Rossi"
+                        className="w-full h-9 px-3 py-1.5 text-xs bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Aula (opz.)</label>
+                      <input
+                        type="text"
+                        value={defaultRoom}
+                        onChange={e => setDefaultRoom(e.target.value)}
+                        placeholder="Es. Aula 12"
+                        className="w-full h-9 px-3 py-1.5 text-xs bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Descrizione / Note */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Descrizione / Programma (opz.)</label>
+                    <input
+                      type="text"
+                      value={description}
+                      onChange={e => setDescription(e.target.value)}
+                      placeholder="Es. Programma ministeriale, laboratorio..."
+                      className="w-full h-9 px-3 py-1.5 text-xs bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div className="pt-2 flex items-center justify-end gap-2">
+                    {editingId && (
                       <button
-                        key={key}
                         type="button"
-                        onClick={() => setColor(key)}
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center transition border ${pal.bg} ${pal.border} ${
-                          isSelected ? 'ring-2 ring-indigo-600 ring-offset-1 scale-110 shadow-xs' : 'hover:scale-105'
-                        }`}
-                        title={pal.label}
+                        onClick={resetForm}
+                        className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition cursor-pointer"
                       >
-                        <span className={`w-2.5 h-2.5 rounded-full ${pal.dot}`} />
+                        Annulla Modifica
                       </button>
-                    );
-                  })}
+                    )}
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{editingId ? 'Salva Materia' : 'Aggiungi Materia'}</span>
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 px-4 text-center space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-slate-200/70 text-slate-500 flex items-center justify-center">
+                  <Lock className="w-6 h-6" />
                 </div>
-              </div>
-
-              {/* Grid: Docente & Aula */}
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Docente (opz.)</label>
-                  <input
-                    type="text"
-                    value={defaultTeacher}
-                    onChange={e => setDefaultTeacher(e.target.value)}
-                    placeholder="Es. Prof. Rossi"
-                    className="w-full h-9 px-3 py-1.5 text-xs bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
-                  />
+                  <h4 className="text-sm font-bold text-slate-800">Modifiche Riservate</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                    L'editor delle materie (creazione, modifica e colori) è disponibile per i <strong>Controller (Rappresentanti)</strong> e per gli <strong>Admin</strong> della classe.
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Aula (opz.)</label>
-                  <input
-                    type="text"
-                    value={defaultRoom}
-                    onChange={e => setDefaultRoom(e.target.value)}
-                    placeholder="Es. Aula 12"
-                    className="w-full h-9 px-3 py-1.5 text-xs bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
-                  />
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-600">
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Modalità sola consultazione attiva</span>
                 </div>
               </div>
-
-              {/* Descrizione / Note */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Descrizione / Programma (opz.)</label>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="Es. Programma ministeriale, laboratorio..."
-                  className="w-full h-9 px-3 py-1.5 text-xs bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="pt-2 flex items-center justify-end gap-2">
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition cursor-pointer"
-                  >
-                    Annulla Modifica
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>{editingId ? 'Salva Materia' : 'Aggiungi Materia'}</span>
-                </button>
-              </div>
-            </form>
+            )}
           </div>
 
           {/* Right List: All Subjects */}
@@ -338,24 +387,26 @@ export const SubjectManagerModal: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(sub)}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                        title="Modifica materia"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(sub.id, sub.name)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Elimina materia"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {isController && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(sub)}
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                          title="Modifica materia"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(sub.id, sub.name)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                          title="Elimina materia"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

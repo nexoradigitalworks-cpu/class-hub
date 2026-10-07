@@ -4,7 +4,7 @@ import {
   Trash2, Lock, Unlock, Users, BarChart3 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { localStore } from '../services/dataStore';
+import { surveysAdapter } from '../services/adapters';
 import { Survey } from '../types';
 import { CreateSurveyModal } from '../components/CreateSurveyModal';
 
@@ -19,33 +19,51 @@ export const SurveysPage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const loadData = () => {
+  const loadData = async () => {
     if (!profile) return;
-    setSurveys(localStore.getSurveys(profile.classId || ''));
+    try {
+      const list = await surveysAdapter.getSurveys(profile.classId || '', profile.uid);
+      setSurveys(list);
+    } catch {
+      // Fallback
+    }
   };
 
   useEffect(() => {
     loadData();
-    const unsub = localStore.subscribe(loadData);
-    return () => unsub();
   }, [profile]);
 
-  const handleVote = (surveyId: string, optionId: string) => {
+  const handleVote = async (surveyId: string, optionId: string) => {
     if (!profile) return;
-    localStore.voteSurvey(surveyId, optionId, profile.uid);
-    showToast('Voto registrato con successo!');
+    try {
+      await surveysAdapter.voteSurvey(surveyId, optionId, profile.uid);
+      showToast('Voto registrato con successo!');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore nella registrazione del voto');
+    }
   };
 
-  const handleToggleStatus = (surveyId: string) => {
+  const handleToggleStatus = async (surveyId: string, currentStatus?: 'OPEN' | 'CLOSED') => {
     if (!isController && !isAdmin) return;
-    localStore.toggleSurveyStatus(surveyId);
-    showToast('Stato sondaggio aggiornato');
+    try {
+      await surveysAdapter.toggleSurveyStatus(surveyId, currentStatus);
+      showToast('Stato sondaggio aggiornato');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore nell\'aggiornamento dello stato');
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!isController && !isAdmin) return;
-    localStore.deleteSurvey(id);
-    showToast('Sondaggio eliminato');
+    try {
+      await surveysAdapter.deleteSurvey(id);
+      showToast('Sondaggio eliminato');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Errore nell\'eliminazione del sondaggio');
+    }
   };
 
   return (

@@ -6,13 +6,24 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AvatarIcon } from '../components/AvatarIcon';
+import { ClassHubLogo } from '../components/ClassHubLogo';
 
 type OnboardingStep = 'select' | 'join' | 'create' | 'created_success';
 
-export const ClassOnboardingPage: React.FC = () => {
+interface ClassOnboardingPageProps {
+  initialSuccessInfo?: { classId: string; code: string; name: string } | null;
+  onClassCreated?: (info: { classId: string; code: string; name: string }) => void;
+  onComplete?: () => void;
+}
+
+export const ClassOnboardingPage: React.FC<ClassOnboardingPageProps> = ({
+  initialSuccessInfo = null,
+  onClassCreated,
+  onComplete
+}) => {
   const { profile, joinClass, createClass, logout } = useAuth();
 
-  const [step, setStep] = useState<OnboardingStep>('select');
+  const [step, setStep] = useState<OnboardingStep>(initialSuccessInfo ? 'created_success' : 'select');
   const [classCode, setClassCode] = useState('');
   const [className, setClassName] = useState('');
   const [schoolName, setSchoolName] = useState('');
@@ -26,7 +37,7 @@ export const ClassOnboardingPage: React.FC = () => {
     classId: string;
     code: string;
     name: string;
-  } | null>(null);
+  } | null>(initialSuccessInfo);
   const [copied, setCopied] = useState(false);
 
   const clearError = () => setError(null);
@@ -44,7 +55,9 @@ export const ClassOnboardingPage: React.FC = () => {
     try {
       setLoading(true);
       await joinClass(clean);
-      // Auth state will update and automatically transition to Calendar
+      if (onComplete) {
+        onComplete();
+      }
     } catch (err: any) {
       setError(err?.message || 'Codice classe non valido. Controlla il codice e riprova.');
     } finally {
@@ -67,6 +80,9 @@ export const ClassOnboardingPage: React.FC = () => {
       const res = await createClass(clean, schoolName, academicYear);
       setCreatedClassInfo(res);
       setStep('created_success');
+      if (onClassCreated) {
+        onClassCreated(res);
+      }
     } catch (err: any) {
       setError(err?.message || 'Errore durante la creazione della classe. Riprova.');
     } finally {
@@ -88,9 +104,7 @@ export const ClassOnboardingPage: React.FC = () => {
       {/* Top Bar with user info & logout */}
       <header className="w-full max-w-4xl flex items-center justify-between py-2 px-1">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-[#2563EB] flex items-center justify-center text-white shadow-xs">
-            <GraduationCap className="w-5 h-5" />
-          </div>
+          <ClassHubLogo size="xs" />
           <span className="font-bold text-base tracking-tight text-slate-900">ClassHub</span>
         </div>
 
@@ -435,8 +449,11 @@ export const ClassOnboardingPage: React.FC = () => {
                 {/* Continue button (reloads state and goes to Calendar) */}
                 <button
                   onClick={() => {
-                    // Triggers re-render to CalendarHome
-                    window.location.reload();
+                    if (onComplete) {
+                      onComplete();
+                    } else {
+                      window.location.reload();
+                    }
                   }}
                   className="w-full py-2.5 px-4 bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] text-white font-semibold rounded-xl text-sm transition shadow-sm shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -452,8 +469,31 @@ export const ClassOnboardingPage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="w-full text-center py-2 text-[11px] text-slate-400 font-medium">
-        ClassHub © 2026 — Piattaforma scolastica collaborativa
+      <footer className="w-full text-center py-3 text-[11px] text-slate-400 font-medium space-y-1">
+        <div>ClassHub © 2026 — Piattaforma scolastica collaborativa</div>
+        <div className="flex items-center justify-center gap-3 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              window.history.pushState({}, '', '/privacy');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            className="hover:text-slate-600 transition cursor-pointer"
+          >
+            Privacy Policy
+          </button>
+          <span>•</span>
+          <button
+            type="button"
+            onClick={() => {
+              window.history.pushState({}, '', '/terms');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            className="hover:text-slate-600 transition cursor-pointer"
+          >
+            Termini di Servizio
+          </button>
+        </div>
       </footer>
 
     </div>
