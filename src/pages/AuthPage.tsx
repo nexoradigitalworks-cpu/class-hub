@@ -632,8 +632,7 @@ const DevAuthSection: React.FC<{
   setLoading: (l: boolean) => void; 
   setError: (e: string | null) => void;
   parseAuthError: (err: any) => string;
-}> = ({ clearErrors, setLoading, setError, parseAuthError }) => {
-  if (!import.meta.env.DEV) return null;
+}> = import.meta.env.DEV ? ({ clearErrors, setLoading, setError, parseAuthError }) => {
   const { loginAsDeveloper } = useAuth();
 
   return (
@@ -705,5 +704,5 @@ const DevAuthSection: React.FC<{
       </div>
     </div>
   );
-};
+} : () => null;
 
