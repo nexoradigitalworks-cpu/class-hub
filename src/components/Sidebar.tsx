@@ -11,6 +11,7 @@ import { AvatarIcon } from './AvatarIcon';
 import { ClassHubLogo } from './ClassHubLogo';
 import { CreateClassModal } from './CreateClassModal';
 import { JoinClassModal } from './JoinClassModal';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export type NavigationTab = 
   | 'calendario' 
@@ -275,6 +276,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, count
           </div>
           <p className="font-mono text-xs font-black text-slate-900 mt-1 tracking-wider">{classCodeDisplay}</p>
         </div>
+      </div>
+
+      {/* PWA Install Quick Action */}
+      <div className="px-3 pb-2">
+        <PWAInstallButton variant="sidebar" />
       </div>
 
       {/* User Footer Card & Logout */}

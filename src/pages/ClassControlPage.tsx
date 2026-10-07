@@ -12,9 +12,12 @@ import { ROLE_LABELS, AVATAR_COLORS } from '../utils/theme';
 import { FormSelect } from '../components/ui/FormSelect';
 import { ROLE_OPTIONS } from '../utils/dropdownPresets';
 import { AvatarIcon } from '../components/AvatarIcon';
+import { useWebPush } from '../utils/useWebPush';
+import { Bell, BellOff } from 'lucide-react';
 
 export const ClassControlPage: React.FC = () => {
   const { profile, currentClass, allMembers, isAdmin, updateUserRole } = useAuth();
+  const { isSupported, isSubscribed, subscribeToPush, unsubscribeFromPush, loading: pushLoading } = useWebPush();
   
   const [searchMember, setSearchMember] = useState('');
   const [copied, setCopied] = useState(false);
@@ -27,6 +30,30 @@ export const ClassControlPage: React.FC = () => {
   const [allowSelfJoin, setAllowSelfJoin] = useState(true);
   const [controllerNotices, setControllerNotices] = useState(true);
   const [lockVolunteers, setLockVolunteers] = useState(false);
+
+  const handlePushToggle = async () => {
+    if (!isSupported) {
+      showToast('Notifiche push non supportate da questo browser');
+      return;
+    }
+    try {
+      if (isSubscribed) {
+        await unsubscribeFromPush();
+        showToast('Notifiche push disattivate');
+      } else {
+        // VAPID public key placeholder (user configured in Supabase / env)
+        const vapidKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string) || '';
+        const success = await subscribeToPush(vapidKey);
+        if (success) {
+          showToast('Notifiche push attivate con successo!');
+        } else {
+          showToast('Impossibile attivare: verifica i permessi del browser');
+        }
+      }
+    } catch {
+      showToast('Errore durante la configurazione delle notifiche');
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -219,6 +246,28 @@ export const ClassControlPage: React.FC = () => {
           </div>
 
           <div className="space-y-3.5 text-xs">
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+              <div>
+                <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Bell className="w-3.5 h-3.5 text-blue-600" />
+                  Notifiche Push
+                </p>
+                <p className="text-[11px] text-slate-500">Ricevi avvisi su verifiche e interrogazioni</p>
+              </div>
+              <button
+                onClick={handlePushToggle}
+                disabled={pushLoading || !isSupported}
+                className={`w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${
+                  isSubscribed ? 'bg-blue-600' : 'bg-slate-300'
+                } ${(!isSupported || pushLoading) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                title={isSupported ? 'Attiva o disattiva notifiche push' : 'Non supportato dal browser'}
+              >
+                <span className={`w-5 h-5 rounded-full bg-white block transition-transform shadow-xs ${
+                  isSubscribed ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </button>
+            </div>
+
             <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/60">
               <div>
                 <p className="font-bold text-slate-800">Iscrizione con Codice</p>

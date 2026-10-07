@@ -18,6 +18,7 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { ClassHubLogo } from './components/ClassHubLogo';
 import { UpdatePasswordModal } from './components/UpdatePasswordModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { interrogationsAdapter, noticesAdapter, surveysAdapter } from './services/adapters';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { GraduationCap, Loader2, X } from 'lucide-react';
@@ -282,6 +283,9 @@ function AppContent() {
           }}
         />
       )}
+
+      {/* Offline Connectivity Notification */}
+      <OfflineIndicator />
     </div>
   );
 }
