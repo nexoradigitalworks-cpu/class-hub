@@ -9,7 +9,8 @@ import { localStore } from '../services/dataStore';
 import { Interrogation } from '../types';
 import { toggleVolunteerReservation } from '../services/interrogations';
 import { CreateInterrogationModal } from '../components/CreateInterrogationModal';
-import { CustomSelect, SelectOption } from '../components/ui/CustomSelect';
+import { FormSelect } from '../components/ui/FormSelect';
+import { SelectOption } from '../components/ui/CustomSelect';
 import { SUBJECT_OPTIONS } from '../utils/dropdownPresets';
 import { AVATAR_COLORS } from '../utils/theme';
 
@@ -190,18 +191,16 @@ export const InterrogationsPage: React.FC = () => {
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
-            <CustomSelect
+            <FormSelect
               label="Filtra per Materia"
               value={selectedSubject}
               onChange={setSelectedSubject}
               options={subjectDropdownOptions}
-              searchable={subjectDropdownOptions.length > 5}
-              searchPlaceholder="Filtra materia..."
             />
           </div>
 
           <div>
-            <CustomSelect
+            <FormSelect
               label="Filtra per Stato & Mie Prenotazioni"
               value={statusFilter}
               onChange={setStatusFilter}

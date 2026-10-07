@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { localStore } from '../services/dataStore';
 import { RepresentationItem } from '../types';
 import { CreateRepresentationModal } from '../components/CreateRepresentationModal';
-import { CustomSelect } from '../components/ui/CustomSelect';
+import { FormSelect } from '../components/ui/FormSelect';
 import { STATUS_OPTIONS } from '../utils/dropdownPresets';
 
 export const RepresentationPage: React.FC = () => {
@@ -134,14 +134,14 @@ export const RepresentationPage: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     {isController ? (
-                      <CustomSelect
-                        value={item.status || 'IN_CORSO'}
-                        onChange={(val) => handleStatusChange(item.id, val as any)}
-                        options={STATUS_OPTIONS}
-                        compact
-                        className="w-44"
-                        align="right"
-                      />
+                      <div className="w-40 sm:w-48">
+                        <FormSelect
+                          value={item.status || 'IN_CORSO'}
+                          onChange={(val) => handleStatusChange(item.id, val as any)}
+                          options={STATUS_OPTIONS}
+                          compact
+                        />
+                      </div>
                     ) : (
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                         item.status === 'APPROVATO'

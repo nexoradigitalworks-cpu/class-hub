@@ -17,8 +17,9 @@ import { CalendarEvent, Interrogation, Notice } from '../types';
 import { toggleVolunteerReservation } from '../services/interrogations';
 import { CreateEventModal } from '../components/CreateEventModal';
 import { CreateInterrogationModal } from '../components/CreateInterrogationModal';
-import { CustomSelect, SelectOption } from '../components/ui/CustomSelect';
-import { SUBJECT_OPTIONS } from '../utils/dropdownPresets';
+import { FormSelect } from '../components/ui/FormSelect';
+import { SelectOption } from '../components/ui/CustomSelect';
+import { SUBJECT_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
 
 type ViewMode = 'split' | 'calendar' | 'details';
 
@@ -82,9 +83,10 @@ export const CalendarHome: React.FC<CalendarHomeProps> = ({ onOpenInterrogations
     { value: 'PERSONALI', label: 'Impegni Personali Privati', icon: <Lock className="w-3.5 h-3.5 text-slate-600" />, colorDot: 'bg-slate-600', badge: 'Privato', badgeClass: 'bg-slate-100 text-slate-700' }
   ];
 
+  const classSubjects = localStore.getSubjects(profile?.classId || '');
   const calendarSubjectOptions: SelectOption[] = [
     { value: 'ALL', label: 'Tutte le materie', icon: <Filter className="w-3.5 h-3.5 text-slate-400" /> },
-    ...SUBJECT_OPTIONS
+    ...classSubjects.map(formatSubjectToOption)
   ];
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -284,10 +286,10 @@ export const CalendarHome: React.FC<CalendarHomeProps> = ({ onOpenInterrogations
               </div>
             </div>
 
-            {/* Filter toolbar with Radical CustomSelects */}
-            <div className="flex flex-wrap items-center gap-2 mb-3 py-1 text-xs shrink-0 relative z-30">
-              <div className="w-48 sm:w-56 shrink-0">
-                <CustomSelect
+            {/* Filter toolbar with FormSelects */}
+            <div className="flex flex-wrap items-center gap-2 mb-3 py-1 text-xs shrink-0">
+              <div className="w-52 sm:w-60 shrink-0">
+                <FormSelect
                   value={filterType}
                   onChange={(val) => setFilterType(val as any)}
                   options={filterTypeOptions}
@@ -295,21 +297,19 @@ export const CalendarHome: React.FC<CalendarHomeProps> = ({ onOpenInterrogations
                 />
               </div>
 
-              <div className="w-44 sm:w-52 shrink-0">
-                <CustomSelect
+              <div className="w-48 sm:w-56 shrink-0">
+                <FormSelect
                   value={subjectFilter}
                   onChange={setSubjectFilter}
                   options={calendarSubjectOptions}
                   compact
-                  searchable={true}
-                  searchPlaceholder="Filtra materia..."
                 />
               </div>
 
               {(filterType !== 'ALL' || subjectFilter !== 'ALL') && (
                 <button
                   onClick={() => { setFilterType('ALL'); setSubjectFilter('ALL'); }}
-                  className="text-[11px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-xl transition"
+                  className="text-[11px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition cursor-pointer"
                 >
                   Resetta filtri
                 </button>

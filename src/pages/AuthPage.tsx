@@ -34,7 +34,7 @@ export const AuthPage: React.FC = () => {
     setResetSuccessMessage(null);
   };
 
-  const parseFirebaseError = (err: any): string => {
+  const parseAuthError = (err: any): string => {
     const code = err?.code || '';
     const message = err?.message || '';
 
@@ -72,7 +72,7 @@ export const AuthPage: React.FC = () => {
       setLoading(true);
       await loginWithEmail(email, password);
     } catch (err: any) {
-      setError(parseFirebaseError(err));
+      setError(parseAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -101,7 +101,7 @@ export const AuthPage: React.FC = () => {
       setLoading(true);
       await registerWithEmail(email, password, firstName, lastName, selectedAvatarId);
     } catch (err: any) {
-      setError(parseFirebaseError(err));
+      setError(parseAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -113,7 +113,7 @@ export const AuthPage: React.FC = () => {
       setGoogleLoading(true);
       await loginWithGoogle();
     } catch (err: any) {
-      setError(parseFirebaseError(err));
+      setError(parseAuthError(err));
     } finally {
       setGoogleLoading(false);
     }
@@ -133,7 +133,7 @@ export const AuthPage: React.FC = () => {
       await resetPassword(email);
       setResetSuccessMessage('Ti abbiamo inviato un\'email con le istruzioni per reimpostare la tua password.');
     } catch (err: any) {
-      setError(parseFirebaseError(err));
+      setError(parseAuthError(err));
     } finally {
       setLoading(false);
     }

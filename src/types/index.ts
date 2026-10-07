@@ -172,3 +172,14 @@ export interface TimetableSlot {
   teacher?: string;
   room?: string;
 }
+
+export interface SubjectItem {
+  id: string;
+  name: string;
+  category?: 'SCIENTIFICA' | 'UMANISTICA' | 'LINGUISTICA' | 'ARTISTICA_MOTORIA' | 'ALTRO';
+  color: string; // e.g. 'blue', 'cyan', 'teal', 'emerald', 'purple', 'amber', 'rose', 'indigo', 'pink', 'orange', 'slate'
+  defaultTeacher?: string;
+  defaultRoom?: string;
+  description?: string;
+  classId?: string;
+}

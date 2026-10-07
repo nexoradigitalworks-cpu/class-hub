@@ -2,10 +2,10 @@ import { format, addDays } from 'date-fns';
 import { 
   UserProfile, CalendarEvent, Interrogation, Notice, 
   MaterialItem, Survey, RepresentationItem, VolunteerSlot, UserRole,
-  ClassroomControl, TimetableSlot 
+  ClassroomControl, TimetableSlot, Classroom, ClassMember, UserMembership, SubjectItem 
 } from '../types';
 
-const STORAGE_KEY = 'classhub_db_state_v3';
+const STORAGE_KEY = 'classhub_db_state_v4';
 
 // Preset sample users including fake students and fake controllers
 export const PRESET_USERS: UserProfile[] = [
@@ -17,6 +17,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'ADMIN',
     avatarId: 'avatar-indigo',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -28,6 +29,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'CONTROLLER',
     avatarId: 'avatar-emerald',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -39,6 +41,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'CONTROLLER',
     avatarId: 'avatar-amber',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -50,6 +53,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'STUDENT',
     avatarId: 'avatar-blue',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -61,6 +65,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'STUDENT',
     avatarId: 'avatar-purple',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -72,6 +77,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'STUDENT',
     avatarId: 'avatar-teal',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -83,6 +89,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'STUDENT',
     avatarId: 'avatar-rose',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -94,6 +101,7 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'STUDENT',
     avatarId: 'avatar-cyan',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   },
@@ -105,13 +113,29 @@ export const PRESET_USERS: UserProfile[] = [
     role: 'STUDENT',
     avatarId: 'avatar-violet',
     classId: 'cls-dev-test',
+    activeClassId: 'cls-dev-test',
     className: 'ClassHub — Developer Test',
     createdAt: new Date().toISOString()
   }
 ];
 
+export const DEFAULT_SUBJECTS: SubjectItem[] = [
+  { id: 'sub-mat', name: 'Matematica', category: 'SCIENTIFICA', color: 'blue', defaultTeacher: 'Prof. Barbieri', defaultRoom: 'Aula 24' },
+  { id: 'sub-fis', name: 'Fisica', category: 'SCIENTIFICA', color: 'teal', defaultTeacher: 'Prof. Rinaldi', defaultRoom: 'Lab. Fisica' },
+  { id: 'sub-ita', name: 'Italiano', category: 'UMANISTICA', color: 'purple', defaultTeacher: 'Prof. De Luca', defaultRoom: 'Aula 24' },
+  { id: 'sub-lat', name: 'Latino', category: 'UMANISTICA', color: 'rose', defaultTeacher: 'Prof.ssa Gatti', defaultRoom: 'Aula 24' },
+  { id: 'sub-fil', name: 'Filosofia', category: 'UMANISTICA', color: 'indigo', defaultTeacher: 'Prof.ssa Martini', defaultRoom: 'Aula 24' },
+  { id: 'sub-sto', name: 'Storia', category: 'UMANISTICA', color: 'amber', defaultTeacher: 'Prof.ssa Martini', defaultRoom: 'Aula 24' },
+  { id: 'sub-ing', name: 'Inglese', category: 'LINGUISTICA', color: 'emerald', defaultTeacher: 'Prof. Smith', defaultRoom: 'Aula 24' },
+  { id: 'sub-sci', name: 'Scienze', category: 'SCIENTIFICA', color: 'cyan', defaultTeacher: 'Prof.ssa Morelli', defaultRoom: 'Lab. Chimica' },
+  { id: 'sub-art', name: 'Arte', category: 'ARTISTICA_MOTORIA', color: 'pink', defaultTeacher: 'Prof. Valli', defaultRoom: 'Aula Disegno' },
+  { id: 'sub-mot', name: 'Scienze Motorie', category: 'ARTISTICA_MOTORIA', color: 'orange', defaultTeacher: 'Prof. Costa', defaultRoom: 'Palestra 1' }
+];
+
 export interface ClassHubDataState {
   users: Record<string, UserProfile>;
+  classes: Record<string, Classroom>;
+  memberships: Record<string, UserMembership[]>;
   events: Record<string, CalendarEvent>;
   interrogations: Record<string, Interrogation>;
   notices: Record<string, Notice>;
@@ -120,7 +144,37 @@ export interface ClassHubDataState {
   representation: Record<string, RepresentationItem>;
   classroomControl: ClassroomControl;
   timetable: TimetableSlot[];
+  subjects?: Record<string, SubjectItem>;
 }
+
+const DEFAULT_CLASSES: Record<string, Classroom> = {
+  'cls-dev-test': {
+    id: 'cls-dev-test',
+    name: 'ClassHub — Developer Test',
+    code: 'DEVTEST',
+    schoolName: 'Liceo Scientifico Leonardo da Vinci',
+    academicYear: '2026/2027',
+    createdBy: 'developer-test-uid',
+    createdAt: new Date().toISOString(),
+    allowSelfJoin: true,
+    lockVolunteersOnDeadline: false,
+    controllerCanCreateNotices: true,
+    adminEmail: 'developer.test@classhub.edu'
+  },
+  'classe-4a': {
+    id: 'classe-4a',
+    name: '4° Liceo Scientifico A',
+    code: 'LSC4-8K2Q',
+    schoolName: 'Liceo Scientifico Leonardo da Vinci',
+    academicYear: '2026/2027',
+    createdBy: 'alessandro-admin',
+    createdAt: new Date().toISOString(),
+    allowSelfJoin: true,
+    lockVolunteersOnDeadline: false,
+    controllerCanCreateNotices: true,
+    adminEmail: 'a.conti@liceo.edu.it'
+  }
+};
 
 const DEFAULT_TIMETABLE: TimetableSlot[] = [
   // Lunedì (1)
@@ -170,6 +224,19 @@ const getInitialState = (): ClassHubDataState => {
   const usersMap: Record<string, UserProfile> = {};
   PRESET_USERS.forEach(u => {
     usersMap[u.uid] = u;
+  });
+
+  const defaultMemberships: Record<string, UserMembership[]> = {};
+  PRESET_USERS.forEach(u => {
+    defaultMemberships[u.uid] = [
+      {
+        classId: 'cls-dev-test',
+        className: 'ClassHub — Developer Test',
+        classCode: 'DEVTEST',
+        role: u.role,
+        joinedAt: new Date().toISOString()
+      }
+    ];
   });
 
   const events: Record<string, CalendarEvent> = {
@@ -459,8 +526,15 @@ const getInitialState = (): ClassHubDataState => {
     createdAt: new Date().toISOString()
   };
 
+  const subjectsMap: Record<string, SubjectItem> = {};
+  DEFAULT_SUBJECTS.forEach(s => {
+    subjectsMap[s.id] = s;
+  });
+
   return {
     users: usersMap,
+    classes: DEFAULT_CLASSES,
+    memberships: defaultMemberships,
     events,
     interrogations,
     notices,
@@ -468,7 +542,8 @@ const getInitialState = (): ClassHubDataState => {
     surveys,
     representation,
     classroomControl,
-    timetable: DEFAULT_TIMETABLE
+    timetable: DEFAULT_TIMETABLE,
+    subjects: subjectsMap
   };
 };
 
@@ -486,7 +561,11 @@ class LocalDataStore {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.classroomControl && parsed.timetable && parsed.interrogations) {
-          return parsed;
+          return {
+            ...parsed,
+            classes: parsed.classes || DEFAULT_CLASSES,
+            memberships: parsed.memberships || {}
+          };
         }
       }
     } catch (e) {
@@ -519,9 +598,89 @@ class LocalDataStore {
     return this.state;
   }
 
+  // --- Classes & Memberships ---
+  public getClass(classId: string): Classroom | null {
+    return this.state.classes[classId] || null;
+  }
+
+  public getClassByCode(code: string): Classroom | null {
+    const clean = code.trim().toUpperCase();
+    return Object.values(this.state.classes).find(c => c.code.toUpperCase() === clean) || null;
+  }
+
+  public createClass(classroom: Classroom): Classroom {
+    this.state.classes[classroom.id] = classroom;
+    this.notify();
+    return classroom;
+  }
+
+  public getAllClasses(): Classroom[] {
+    return Object.values(this.state.classes);
+  }
+
+  public getUserMemberships(userId: string): UserMembership[] {
+    return this.state.memberships[userId] || [];
+  }
+
+  public addUserMembership(userId: string, membership: UserMembership): void {
+    const current = this.state.memberships[userId] || [];
+    if (!current.some(m => m.classId === membership.classId)) {
+      this.state.memberships[userId] = [...current, membership];
+      this.notify();
+    }
+  }
+
+  public removeUserMembership(userId: string, classId: string): void {
+    const current = this.state.memberships[userId] || [];
+    this.state.memberships[userId] = current.filter(m => m.classId !== classId);
+    this.notify();
+  }
+
+  public getMembersOfClass(classId: string): ClassMember[] {
+    const members: ClassMember[] = [];
+    Object.values(this.state.users).forEach(u => {
+      const userMems = this.state.memberships[u.uid] || [];
+      const memInClass = userMems.find(m => m.classId === classId);
+      if (u.classId === classId || u.activeClassId === classId || memInClass) {
+        members.push({
+          userId: u.uid,
+          classId,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          email: u.email,
+          role: memInClass?.role || u.role,
+          avatarId: u.avatarId,
+          joinedAt: memInClass?.joinedAt || u.createdAt
+        });
+      }
+    });
+
+    if (members.length === 0 && classId === 'cls-dev-test') {
+      PRESET_USERS.forEach(u => {
+        members.push({
+          userId: u.uid,
+          classId,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          email: u.email,
+          role: u.role,
+          avatarId: u.avatarId,
+          joinedAt: u.createdAt
+        });
+      });
+    }
+
+    return members;
+  }
+
   // --- Users & Roles ---
   public getUser(uid: string): UserProfile | null {
     return this.state.users[uid] || null;
+  }
+
+  public saveUser(profile: UserProfile): void {
+    this.state.users[profile.uid] = profile;
+    this.notify();
   }
 
   public getAllUsers(): UserProfile[] {
@@ -551,7 +710,6 @@ class LocalDataStore {
   // --- Events ---
   public getEvents(classId: string, currentUserId?: string): CalendarEvent[] {
     return Object.values(this.state.events).filter(ev => {
-      // If event belongs to a specific class and classId is provided, check match
       if (classId && ev.classId && ev.classId !== classId && ev.classId !== 'cls-dev-test') return false;
       if (!ev.isPersonal) return true;
       return ev.authorId === currentUserId;
@@ -835,6 +993,43 @@ class LocalDataStore {
     return code;
   }
 
+  // --- Subjects ---
+  public getSubjects(classId?: string): SubjectItem[] {
+    const subs = Object.values(this.state.subjects || {});
+    if (subs.length === 0) {
+      this.state.subjects = {};
+      DEFAULT_SUBJECTS.forEach(s => {
+        this.state.subjects![s.id] = s;
+      });
+      return DEFAULT_SUBJECTS;
+    }
+    return subs.filter(s => !classId || !s.classId || s.classId === classId || s.classId === 'cls-dev-test');
+  }
+
+  public addSubject(item: Omit<SubjectItem, 'id'>): SubjectItem {
+    const id = 'sub-' + Date.now();
+    const newSubject = { ...item, id };
+    if (!this.state.subjects) this.state.subjects = {};
+    this.state.subjects[id] = newSubject;
+    this.notify();
+    return newSubject;
+  }
+
+  public updateSubject(id: string, updates: Partial<SubjectItem>): void {
+    if (!this.state.subjects) this.state.subjects = {};
+    if (this.state.subjects[id]) {
+      this.state.subjects[id] = { ...this.state.subjects[id], ...updates };
+      this.notify();
+    }
+  }
+
+  public deleteSubject(id: string): void {
+    if (this.state.subjects) {
+      delete this.state.subjects[id];
+      this.notify();
+    }
+  }
+
   // --- Timetable ---
   public getTimetable(): TimetableSlot[] {
     return this.state.timetable;
@@ -847,6 +1042,11 @@ class LocalDataStore {
     } else {
       this.state.timetable.push(slot);
     }
+    this.notify();
+  }
+
+  public deleteTimetableSlot(id: string): void {
+    this.state.timetable = this.state.timetable.filter(s => s.id !== id);
     this.notify();
   }
 

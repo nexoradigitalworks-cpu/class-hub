@@ -3,10 +3,12 @@ import {
   Calculator, Atom, BookOpen, Clock, Globe, 
   Palette, Dumbbell, Sparkles, Scroll, FileText, 
   Image, Link, Presentation, AlertTriangle, Bell, 
-  User, UserCog, ShieldCheck, Calendar, CheckSquare,
-  MessageSquare, HelpCircle, CheckCircle2, XCircle, Users
+  User, UserCog, ShieldCheck, Calendar,
+  MessageSquare, HelpCircle, CheckCircle2, Users, Bookmark
 } from 'lucide-react';
 import { SelectOption } from '../components/ui/CustomSelect';
+import { SubjectItem } from '../types';
+import { COLOR_PALETTES } from './theme';
 
 export const SUBJECT_OPTIONS: SelectOption[] = [
   // Materie Scientifiche
@@ -103,6 +105,28 @@ export const SUBJECT_OPTIONS: SelectOption[] = [
     group: 'Arte, Sport & Attività'
   }
 ];
+
+export const formatSubjectToOption = (sub: SubjectItem): SelectOption => {
+  const palette = COLOR_PALETTES[sub.color] || COLOR_PALETTES.blue;
+  const groupLabel = sub.category === 'SCIENTIFICA' 
+    ? 'Materie Scientifiche' 
+    : sub.category === 'UMANISTICA' 
+      ? 'Materie Umanistiche' 
+      : sub.category === 'LINGUISTICA' 
+        ? 'Lingue Straniere' 
+        : sub.category === 'ARTISTICA_MOTORIA' 
+          ? 'Arte, Sport & Attività' 
+          : 'Altre Materie';
+
+  return {
+    value: sub.name,
+    label: sub.name,
+    colorDot: palette.dot,
+    description: sub.description || (sub.defaultTeacher ? `Docente: ${sub.defaultTeacher}` : undefined),
+    group: groupLabel,
+    icon: <Bookmark className="w-3.5 h-3.5" />
+  };
+};
 
 export const FREQUENT_SUBJECT_CHIPS: SelectOption[] = [
   { value: 'Matematica', label: 'Matematica', colorDot: 'bg-blue-600' },

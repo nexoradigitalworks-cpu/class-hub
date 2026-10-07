@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { localStore } from '../services/dataStore';
 import { X, Lock, Users } from 'lucide-react';
-import { ActivityTypeCategory } from '../types';
+import { ActivityTypeCategory, SubjectItem } from '../types';
 import { FormSelect } from './ui/FormSelect';
 import { PersonalEventSelect, PERSONAL_CATEGORIES } from './ui/PersonalEventSelect';
-import { SUBJECT_OPTIONS, EVENT_TYPE_OPTIONS } from '../utils/dropdownPresets';
+import { EVENT_TYPE_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
+import { SelectOption } from './ui/CustomSelect';
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const { profile, isController, isAdmin } = useAuth();
   const canCreateClassEvent = isController || isAdmin;
 
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(defaultDate || new Date().toISOString().split('T')[0]);
   const [startTime, setStartTime] = useState('09:00');
@@ -33,6 +35,16 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [personalCategory, setPersonalCategory] = useState('STUDIO');
   const [teacher, setTeacher] = useState('');
   const [description, setDescription] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      const classSubs = localStore.getSubjects(profile?.classId || '');
+      setSubjects(classSubs);
+      if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
+        setSubject(classSubs[0].name);
+      }
+    }
+  }, [isOpen, profile?.classId]);
 
   if (!isOpen || !profile) return null;
 
@@ -47,6 +59,14 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setEndTime(`${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`);
     } catch {
       // Keep default
+    }
+  };
+
+  const handleSubjectChange = (val: string) => {
+    setSubject(val);
+    const matched = subjects.find(s => s.name === val);
+    if (matched?.defaultTeacher && !teacher) {
+      setTeacher(matched.defaultTeacher);
     }
   };
 
@@ -77,6 +97,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     onClose();
   };
 
+  const subjectOptions: SelectOption[] = subjects.map(formatSubjectToOption);
+
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200/90 max-h-[92vh] overflow-y-auto">
@@ -101,7 +123,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -114,7 +136,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPersonal(false)}
-                className={`flex-1 py-2 px-3 rounded-lg transition flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-2 px-3 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   !isPersonal
                     ? 'bg-white text-[#2563EB] shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -126,7 +148,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPersonal(true)}
-                className={`flex-1 py-2 px-3 rounded-lg transition flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-2 px-3 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   isPersonal
                     ? 'bg-white text-[#2563EB] shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -205,8 +227,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 <FormSelect
                   label="Materia di Riferimento"
                   value={subject}
-                  onChange={(val) => setSubject(val)}
-                  options={SUBJECT_OPTIONS}
+                  onChange={handleSubjectChange}
+                  options={subjectOptions}
                   required
                 />
               </div>

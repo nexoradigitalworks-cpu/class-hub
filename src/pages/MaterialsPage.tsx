@@ -10,7 +10,8 @@ import { localStore } from '../services/dataStore';
 import { MaterialItem } from '../types';
 import { CreateMaterialModal } from '../components/CreateMaterialModal';
 import { getSubjectStyle } from '../utils/theme';
-import { CustomSelect, SelectOption } from '../components/ui/CustomSelect';
+import { FormSelect } from '../components/ui/FormSelect';
+import { SelectOption } from '../components/ui/CustomSelect';
 import { SUBJECT_OPTIONS } from '../utils/dropdownPresets';
 
 export const MaterialsPage: React.FC = () => {
@@ -132,29 +133,32 @@ export const MaterialsPage: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 relative z-20">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cerca per titolo, argomento o nome file..."
-            className="w-full pl-9 pr-4 py-2 text-xs border rounded-xl border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 shadow-2xs"
-          />
-        </div>
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="w-full">
+            <FormSelect
+              label="Filtra per Materia"
+              value={selectedSubject}
+              onChange={setSelectedSubject}
+              options={subjectFilterOptions}
+            />
+          </div>
 
-        {/* Subject Filter Dropdown */}
-        <div className="w-full sm:w-60 shrink-0">
-          <CustomSelect
-            value={selectedSubject}
-            onChange={setSelectedSubject}
-            options={subjectFilterOptions}
-            compact
-            searchable={subjectFilterOptions.length > 5}
-            searchPlaceholder="Filtra materia..."
-          />
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 tracking-tight">
+              Cerca nel Testo o File
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cerca per titolo, argomento o nome file..."
+                className="w-full h-11 pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 shadow-2xs"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

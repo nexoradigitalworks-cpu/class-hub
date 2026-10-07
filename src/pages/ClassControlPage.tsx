@@ -3,7 +3,7 @@ import {
   ShieldCheck, Key, Copy, RefreshCw, QrCode, 
   Users, Check, ExternalLink, Settings, Sparkles, 
   UserPlus, Lock, GraduationCap, School, Maximize2, X,
-  Search, Trash2, UserCog, User, AlertCircle, Eye, Loader2
+  Search, Trash2, UserCog, User, AlertCircle, Eye, Loader2, BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ import { ROLE_LABELS, AVATAR_COLORS } from '../utils/theme';
 import { FormSelect } from '../components/ui/FormSelect';
 import { ROLE_OPTIONS } from '../utils/dropdownPresets';
 import { AvatarIcon } from '../components/AvatarIcon';
+import { SubjectManagerModal } from '../components/SubjectManagerModal';
 
 export const ClassControlPage: React.FC = () => {
   const { profile, currentClass, allMembers, isAdmin, updateUserRole } = useAuth();
@@ -27,6 +28,7 @@ export const ClassControlPage: React.FC = () => {
   const [allowSelfJoin, setAllowSelfJoin] = useState(true);
   const [controllerNotices, setControllerNotices] = useState(true);
   const [lockVolunteers, setLockVolunteers] = useState(false);
+  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -299,6 +301,16 @@ export const ClassControlPage: React.FC = () => {
               <span>Admin (Capoclasse):</span>
               <span className="font-bold">{adminsCount}</span>
             </div>
+
+            <div className="pt-3">
+              <button
+                onClick={() => setIsSubjectModalOpen(true)}
+                className="w-full py-2.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 transition shadow-2xs cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Gestione & Creazione Materie</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -447,6 +459,13 @@ export const ClassControlPage: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Subject Manager Modal */}
+      <SubjectManagerModal
+        isOpen={isSubjectModalOpen}
+        onClose={() => setIsSubjectModalOpen(false)}
+        classId={profile?.classId || ''}
+      />
 
     </div>
   );

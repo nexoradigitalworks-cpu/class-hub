@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { localStore } from '../services/dataStore';
 import { X, BookOpen, Upload, FileText, Image } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
-import { SUBJECT_OPTIONS, FILE_FORMAT_OPTIONS } from '../utils/dropdownPresets';
+import { FILE_FORMAT_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
+import { SubjectItem } from '../types';
+import { SelectOption } from './ui/CustomSelect';
 
 interface Props {
   isOpen: boolean;
@@ -15,6 +17,7 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
   const { profile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [subject, setSubject] = useState('Matematica');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -25,6 +28,16 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
   const [localFileSize, setLocalFileSize] = useState<string | null>(null);
   const [localFileData, setLocalFileData] = useState<string | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      const classSubs = localStore.getSubjects(profile?.classId || '');
+      setSubjects(classSubs);
+      if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
+        setSubject(classSubs[0].name);
+      }
+    }
+  }, [isOpen, profile?.classId]);
 
   if (!isOpen || !profile) return null;
 
@@ -93,6 +106,8 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
     onCreated?.();
     onClose();
   };
+
+  const subjectOptions: SelectOption[] = subjects.map(formatSubjectToOption);
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -178,7 +193,7 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
                 label="Materia"
                 value={subject}
                 onChange={(val) => setSubject(val)}
-                options={SUBJECT_OPTIONS}
+                options={subjectOptions}
                 required
               />
             </div>

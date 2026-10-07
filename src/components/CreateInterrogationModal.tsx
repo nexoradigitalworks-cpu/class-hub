@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { localStore } from '../services/dataStore';
 import { X, Clock } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
-import { SUBJECT_OPTIONS, MAX_VOLUNTEERS_OPTIONS } from '../utils/dropdownPresets';
+import { MAX_VOLUNTEERS_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
+import { SubjectItem } from '../types';
+import { SelectOption } from './ui/CustomSelect';
 
 interface Props {
   isOpen: boolean;
@@ -20,6 +22,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
 }) => {
   const { profile } = useAuth();
 
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('Filosofia');
   const [date, setDate] = useState(defaultDate || new Date().toISOString().split('T')[0]);
@@ -29,7 +32,28 @@ export const CreateInterrogationModal: React.FC<Props> = ({
   const [teacher, setTeacher] = useState('');
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    if (isOpen) {
+      const classSubs = localStore.getSubjects(profile?.classId || '');
+      setSubjects(classSubs);
+      if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
+        setSubject(classSubs[0].name);
+        if (classSubs[0].defaultTeacher && !teacher) {
+          setTeacher(classSubs[0].defaultTeacher);
+        }
+      }
+    }
+  }, [isOpen, profile?.classId]);
+
   if (!isOpen || !profile) return null;
+
+  const handleSubjectChange = (val: string) => {
+    setSubject(val);
+    const matched = subjects.find(s => s.name === val);
+    if (matched?.defaultTeacher && !teacher) {
+      setTeacher(matched.defaultTeacher);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +77,8 @@ export const CreateInterrogationModal: React.FC<Props> = ({
     onClose();
   };
 
+  const subjectOptions: SelectOption[] = subjects.map(formatSubjectToOption);
+
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200/90 max-h-[92vh] overflow-y-auto">
@@ -69,7 +95,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -97,8 +123,8 @@ export const CreateInterrogationModal: React.FC<Props> = ({
               <FormSelect
                 label="Materia Orale"
                 value={subject}
-                onChange={(val) => setSubject(val)}
-                options={SUBJECT_OPTIONS}
+                onChange={handleSubjectChange}
+                options={subjectOptions}
                 required
               />
             </div>

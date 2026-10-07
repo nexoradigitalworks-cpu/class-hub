@@ -58,6 +58,24 @@ export const ROLE_LABELS: Record<string, { title: string; badge: string; desc: s
   }
 };
 
+export const COLOR_PALETTES: Record<string, { bg: string; text: string; border: string; dot: string; label: string }> = {
+  blue: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-600', label: 'Blu' },
+  cyan: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', dot: 'bg-cyan-600', label: 'Ciano' },
+  teal: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200', dot: 'bg-teal-600', label: 'Teal' },
+  emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-600', label: 'Smeraldo' },
+  purple: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', dot: 'bg-purple-600', label: 'Viola' },
+  amber: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-600', label: 'Ambra' },
+  rose: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-600', label: 'Rosa' },
+  indigo: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', dot: 'bg-indigo-600', label: 'Indaco' },
+  pink: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200', dot: 'bg-pink-600', label: 'Pink' },
+  orange: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', dot: 'bg-orange-600', label: 'Arancione' },
+  slate: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200', dot: 'bg-slate-600', label: 'Grigio' },
+  violet: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', dot: 'bg-violet-600', label: 'Lavanda' },
+  red: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-600', label: 'Rosso' },
+  yellow: { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border-yellow-200', dot: 'bg-yellow-500', label: 'Giallo' },
+  lime: { bg: 'bg-lime-50', text: 'text-lime-700', border: 'border-lime-200', dot: 'bg-lime-600', label: 'Lime' },
+};
+
 export const SUBJECT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   Matematica: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
   Fisica: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
@@ -68,11 +86,16 @@ export const SUBJECT_COLORS: Record<string, { bg: string; text: string; border: 
   Inglese: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
   Scienze: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
   Arte: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
-  Attività: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+  'Scienze Motorie': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+  Attività: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' },
   Personale: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
 };
 
-export const getSubjectStyle = (subject?: string) => {
+export const getSubjectStyle = (subject?: string, customColor?: string) => {
+  if (customColor && COLOR_PALETTES[customColor]) {
+    const p = COLOR_PALETTES[customColor];
+    return { bg: p.bg, text: p.text, border: p.border };
+  }
   if (!subject) return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
-  return SUBJECT_COLORS[subject] || { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' };
+  return SUBJECT_COLORS[subject] || { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' };
 };
