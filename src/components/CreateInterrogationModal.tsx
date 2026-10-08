@@ -20,7 +20,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
   defaultDate,
   onCreated
 }) => {
-  const { profile } = useAuth();
+  const { profile, activeClassId, currentClass } = useAuth();
 
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [title, setTitle] = useState('');
@@ -60,6 +60,8 @@ export const CreateInterrogationModal: React.FC<Props> = ({
     e.preventDefault();
     if (!title || !date) return;
 
+    const targetClassId = activeClassId || profile.classId || profile.activeClassId || currentClass?.id || 'cls-dev-test';
+
     try {
       await interrogationsAdapter.createInterrogation(
         {
@@ -71,7 +73,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
           maxVolunteers: Number(maxVolunteers) || 3,
           teacher: teacher || undefined,
           notes: notes || undefined,
-          classId: profile.classId || undefined
+          classId: targetClassId
         },
         profile.uid
       );

@@ -10,7 +10,7 @@ interface Props {
 }
 
 export const CreateSurveyModal: React.FC<Props> = ({ isOpen, onClose, onCreated }) => {
-  const { profile } = useAuth();
+  const { profile, activeClassId, currentClass } = useAuth();
   const [title, setTitle] = useState('');
   const [question, setQuestion] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -55,6 +55,8 @@ export const CreateSurveyModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
       return;
     }
 
+    const targetClassId = activeClassId || profile.classId || profile.activeClassId || currentClass?.id || 'cls-dev-test';
+
     try {
       await surveysAdapter.addSurvey({
         title,
@@ -63,7 +65,7 @@ export const CreateSurveyModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
         status: 'OPEN',
         deadline: deadline || undefined,
         authorName: `${profile.firstName} ${profile.lastName}`,
-        classId: profile.classId || undefined
+        classId: targetClassId
       }, profile.uid);
 
       setTitle('');

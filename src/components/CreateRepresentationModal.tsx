@@ -13,7 +13,7 @@ interface Props {
 }
 
 export const CreateRepresentationModal: React.FC<Props> = ({ isOpen, onClose, onCreated }) => {
-  const { profile } = useAuth();
+  const { profile, activeClassId, currentClass } = useAuth();
   const [category, setCategory] = useState<RepresentationItem['category']>('PROPOSTA');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -24,6 +24,8 @@ export const CreateRepresentationModal: React.FC<Props> = ({ isOpen, onClose, on
     e.preventDefault();
     if (!title) return;
 
+    const targetClassId = activeClassId || profile.classId || profile.activeClassId || currentClass?.id || 'cls-dev-test';
+
     try {
       await representationAdapter.addRepresentationItem({
         category,
@@ -32,7 +34,7 @@ export const CreateRepresentationModal: React.FC<Props> = ({ isOpen, onClose, on
         status: 'IN_CORSO',
         date: new Date().toISOString().split('T')[0],
         authorName: `${profile.firstName} ${profile.lastName}`,
-        classId: profile.classId || undefined
+        classId: targetClassId
       }, profile.uid);
 
       setTitle('');

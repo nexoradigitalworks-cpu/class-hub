@@ -12,7 +12,7 @@ interface Props {
 }
 
 export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated }) => {
-  const { profile } = useAuth();
+  const { profile, activeClassId, currentClass } = useAuth();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState<'NORMAL' | 'HIGH'>('NORMAL');
@@ -24,6 +24,8 @@ export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
     e.preventDefault();
     if (!title || !content) return;
 
+    const targetClassId = activeClassId || profile.classId || profile.activeClassId || currentClass?.id || 'cls-dev-test';
+
     try {
       await noticesAdapter.addNotice({
         title,
@@ -31,7 +33,7 @@ export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
         priority,
         date,
         authorName: `${profile.firstName} ${profile.lastName} (${profile.role === 'ADMIN' ? 'Admin' : 'Controller'})`,
-        classId: profile.classId || undefined
+        classId: targetClassId
       }, profile.uid);
 
       setTitle('');

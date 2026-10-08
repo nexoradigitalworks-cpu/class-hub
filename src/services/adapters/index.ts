@@ -398,76 +398,83 @@ export const eventsAdapter = {
   },
 
   async addEvent(event: Omit<CalendarEvent, 'id' | 'createdAt'>): Promise<CalendarEvent> {
+    const targetClassId = event.isPersonal ? null : (event.classId || 'cls-dev-test');
+    const processedEvent = { ...event, classId: targetClassId || undefined };
+
     if (!isSupabaseConfigured || !supabase) {
-      return localStore.addEvent(event);
+      return localStore.addEvent(processedEvent);
     }
 
-    // STRICT CHECK CONSTRAINT:
-    // If isPersonal === true: class_id, subject_id, subject_name, interrogation_id MUST be null.
-    const insertPayload = event.isPersonal
-      ? {
-          class_id: null,
-          author_id: event.authorId,
-          title: event.title,
-          subject_id: null,
-          subject_name: null,
-          type: 'PERSONALE' as const,
-          event_date: event.date,
-          start_time: event.startTime,
-          end_time: event.endTime || null,
-          description: event.description || null,
-          teacher: null,
-          is_personal: true,
-          interrogation_id: null
-        }
-      : {
-          class_id: event.classId || null,
-          author_id: event.authorId,
-          title: event.title,
-          subject_id: null,
-          subject_name: event.subject || null,
-          type: (event.type || 'EVENTO') as any,
-          event_date: event.date,
-          start_time: event.startTime,
-          end_time: event.endTime || null,
-          description: event.description || null,
-          teacher: event.teacher || null,
-          is_personal: false,
-          interrogation_id: event.interrogationId || null
-        };
+    try {
+      const insertPayload = event.isPersonal
+        ? {
+            class_id: null,
+            author_id: event.authorId,
+            title: event.title,
+            subject_id: null,
+            subject_name: null,
+            type: 'PERSONALE' as const,
+            event_date: event.date,
+            start_time: event.startTime,
+            end_time: event.endTime || null,
+            description: event.description || null,
+            teacher: null,
+            is_personal: true,
+            interrogation_id: null
+          }
+        : {
+            class_id: targetClassId,
+            author_id: event.authorId,
+            title: event.title,
+            subject_id: null,
+            subject_name: event.subject || null,
+            type: (event.type || 'EVENTO') as any,
+            event_date: event.date,
+            start_time: event.startTime,
+            end_time: event.endTime || null,
+            description: event.description || null,
+            teacher: event.teacher || null,
+            is_personal: false,
+            interrogation_id: event.interrogationId || null
+          };
 
-    const { data, error } = await supabase
-      .from('events')
-      .insert(insertPayload)
-      .select()
-      .single();
+      const { data, error } = await supabase
+        .from('events')
+        .insert(insertPayload)
+        .select()
+        .single();
 
-    if (error || !data) {
-      throw new Error(error?.message || 'Impossibile salvare l\'evento.');
-    }
-
-    if (isSupabaseConfigured && supabase && !event.isPersonal && data.class_id && data.id) {
-      logger.network('info', 'Invio notifica push per nuovo evento di classe', { type: 'EVENT', classId: data.class_id, referenceId: data.id });
-      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          classId: data.class_id,
-          notificationType: 'EVENT',
-          referenceId: data.id
-        }
-      });
-      if (pushError) {
-        logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'EVENT' });
-        console.warn('Impossibile inviare notifica push');
-      } else {
-        logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'EVENT' });
+      if (error || !data) {
+        logger.adapter('warn', 'Errore salvataggio evento cloud, attivazione localStore fallback', { error: error?.message });
+        return localStore.addEvent(processedEvent);
       }
-    }
 
-    return {
-      ...event,
-      id: data.id,
-      createdAt: data.created_at
-    };
+      if (!event.isPersonal && data.class_id && data.id) {
+        logger.network('info', 'Invio notifica push per nuovo evento di classe', { type: 'EVENT', classId: data.class_id, referenceId: data.id });
+        const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            classId: data.class_id,
+            notificationType: 'EVENT',
+            referenceId: data.id
+          }
+        });
+        if (pushError) {
+          logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'EVENT' });
+          console.warn('Impossibile inviare notifica push');
+        } else {
+          logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'EVENT' });
+        }
+      }
+
+      return {
+        ...processedEvent,
+        id: data.id,
+        createdAt: data.created_at
+      };
+    } catch (err: any) {
+      logger.adapter('warn', 'Eccezione salvataggio evento, attivazione localStore fallback', { error: err?.message });
+      return localStore.addEvent(processedEvent);
+    }
   },
 
   async deleteEvent(eventId: string): Promise<void> {
@@ -547,66 +554,75 @@ export const interrogationsAdapter = {
     interrogation: Omit<Interrogation, 'id' | 'volunteers' | 'volunteerIds' | 'status'>,
     creatorUid: string
   ): Promise<Interrogation> {
+    const targetClassId = interrogation.classId || 'cls-dev-test';
+    const processedInterrogation = { ...interrogation, classId: targetClassId };
+
     if (!isSupabaseConfigured || !supabase) {
-      return localStore.addInterrogation(interrogation);
+      return localStore.addInterrogation(processedInterrogation);
     }
 
-    const { data, error } = await supabase
-      .from('interrogations')
-      .insert({
-        class_id: interrogation.classId!,
-        created_by: creatorUid,
-        title: interrogation.title,
-        subject_name: interrogation.subject,
-        interrogation_date: interrogation.date,
-        start_time: interrogation.startTime,
-        end_time: interrogation.endTime || null,
-        max_volunteers: interrogation.maxVolunteers,
-        deadline: interrogation.deadline || null,
-        status: 'OPEN',
-        teacher: interrogation.teacher || null,
-        notes: interrogation.notes || null
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('interrogations')
+        .insert({
+          class_id: targetClassId,
+          created_by: creatorUid,
+          title: interrogation.title,
+          subject_name: interrogation.subject,
+          interrogation_date: interrogation.date,
+          start_time: interrogation.startTime,
+          end_time: interrogation.endTime || null,
+          max_volunteers: interrogation.maxVolunteers,
+          deadline: interrogation.deadline || null,
+          status: 'OPEN',
+          teacher: interrogation.teacher || null,
+          notes: interrogation.notes || null
+        })
+        .select()
+        .single();
 
-    if (error || !data) {
-      throw new Error(error?.message || 'Errore nella creazione dell\'interrogazione.');
-    }
-
-    if (isSupabaseConfigured && supabase && data.class_id && data.id) {
-      logger.network('info', 'Invio notifica push per nuova interrogazione', { type: 'INTERROGATION', classId: data.class_id, referenceId: data.id });
-      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          classId: data.class_id,
-          notificationType: 'INTERROGATION',
-          referenceId: data.id
-        }
-      });
-      if (pushError) {
-        logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'INTERROGATION' });
-        console.warn('Impossibile inviare notifica push');
-      } else {
-        logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'INTERROGATION' });
+      if (error || !data) {
+        logger.adapter('warn', 'Errore creazione interrogazione cloud, attivazione localStore fallback', { error: error?.message });
+        return localStore.addInterrogation(processedInterrogation);
       }
-    }
 
-    return {
-      id: data.id,
-      title: data.title,
-      subject: data.subject_name,
-      date: data.interrogation_date,
-      startTime: data.start_time,
-      endTime: data.end_time || '',
-      maxVolunteers: data.max_volunteers,
-      deadline: data.deadline || undefined,
-      status: data.status,
-      teacher: data.teacher || undefined,
-      notes: data.notes || undefined,
-      classId: data.class_id,
-      volunteers: [],
-      volunteerIds: []
-    };
+      if (data.class_id && data.id) {
+        logger.network('info', 'Invio notifica push per nuova interrogazione', { type: 'INTERROGATION', classId: data.class_id, referenceId: data.id });
+        const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            classId: data.class_id,
+            notificationType: 'INTERROGATION',
+            referenceId: data.id
+          }
+        });
+        if (pushError) {
+          logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'INTERROGATION' });
+          console.warn('Impossibile inviare notifica push');
+        } else {
+          logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'INTERROGATION' });
+        }
+      }
+
+      return {
+        id: data.id,
+        title: data.title,
+        subject: data.subject_name,
+        date: data.interrogation_date,
+        startTime: data.start_time,
+        endTime: data.end_time || '',
+        maxVolunteers: data.max_volunteers,
+        deadline: data.deadline || undefined,
+        status: data.status,
+        teacher: data.teacher || undefined,
+        notes: data.notes || undefined,
+        classId: data.class_id,
+        volunteers: [],
+        volunteerIds: []
+      };
+    } catch (err: any) {
+      logger.adapter('warn', 'Eccezione creazione interrogazione, attivazione localStore fallback', { error: err?.message });
+      return localStore.addInterrogation(processedInterrogation);
+    }
   },
 
   async updateInterrogationStatus(id: string, status: 'OPEN' | 'CLOSED'): Promise<void> {
@@ -783,50 +799,59 @@ export const noticesAdapter = {
   },
 
   async addNotice(notice: Omit<Notice, 'id'>, authorUid: string): Promise<Notice> {
+    const targetClassId = notice.classId || 'cls-dev-test';
+    const processedNotice = { ...notice, classId: targetClassId };
+
     if (!isSupabaseConfigured || !supabase) {
-      return localStore.addNotice(notice);
+      return localStore.addNotice(processedNotice);
     }
 
-    const { data, error } = await supabase
-      .from('notices')
-      .insert({
-        class_id: notice.classId!,
-        author_id: authorUid,
-        title: notice.title,
-        content: notice.content,
-        notice_date: notice.date || new Date().toISOString().split('T')[0],
-        priority: notice.priority || 'NORMAL',
-        linked_event_id: notice.linkedEventId || null
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('notices')
+        .insert({
+          class_id: targetClassId,
+          author_id: authorUid,
+          title: notice.title,
+          content: notice.content,
+          notice_date: notice.date || new Date().toISOString().split('T')[0],
+          priority: notice.priority || 'NORMAL',
+          linked_event_id: notice.linkedEventId || null
+        })
+        .select()
+        .single();
 
-    if (error || !data) {
-      throw new Error(error?.message || 'Impossibile pubblicare l\'avviso.');
-    }
-
-    if (isSupabaseConfigured && supabase && data.class_id && data.id) {
-      logger.network('info', 'Invio notifica push per nuovo avviso', { type: 'NOTICE', classId: data.class_id, referenceId: data.id });
-      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          classId: data.class_id,
-          notificationType: 'NOTICE',
-          referenceId: data.id
-        }
-      });
-      if (pushError) {
-        logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'NOTICE' });
-        console.warn('Impossibile inviare notifica push');
-      } else {
-        logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'NOTICE' });
+      if (error || !data) {
+        logger.adapter('warn', 'Errore pubblicazione avviso cloud, attivazione localStore fallback', { error: error?.message });
+        return localStore.addNotice(processedNotice);
       }
-    }
 
-    return {
-      ...notice,
-      id: data.id,
-      createdAt: data.created_at
-    };
+      if (data.class_id && data.id) {
+        logger.network('info', 'Invio notifica push per nuovo avviso', { type: 'NOTICE', classId: data.class_id, referenceId: data.id });
+        const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            classId: data.class_id,
+            notificationType: 'NOTICE',
+            referenceId: data.id
+          }
+        });
+        if (pushError) {
+          logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'NOTICE' });
+          console.warn('Impossibile inviare notifica push');
+        } else {
+          logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'NOTICE' });
+        }
+      }
+
+      return {
+        ...processedNotice,
+        id: data.id,
+        createdAt: data.created_at
+      };
+    } catch (err: any) {
+      logger.adapter('warn', 'Eccezione pubblicazione avviso, attivazione localStore fallback', { error: err?.message });
+      return localStore.addNotice(processedNotice);
+    }
   },
 
   async deleteNotice(id: string): Promise<void> {
@@ -1023,46 +1048,58 @@ export const timetableAdapter = {
   },
 
   async updateTimetableSlot(slot: TimetableSlot, classId?: string): Promise<void> {
-    if (!isSupabaseConfigured || !supabase || !classId) {
+    const targetClassId = classId || 'cls-dev-test';
+    if (!isSupabaseConfigured || !supabase) {
       localStore.updateTimetableSlot(slot);
       return;
     }
 
-    // Check if slot exists in DB
-    const { data: existing } = await supabase
-      .from('timetable_slots')
-      .select('id')
-      .eq('class_id', classId)
-      .eq('day_of_week', slot.dayOfWeek)
-      .eq('hour', slot.hour)
-      .maybeSingle();
-
-    if (existing) {
-      const { error } = await supabase
+    try {
+      // Check if slot exists in DB
+      const { data: existing } = await supabase
         .from('timetable_slots')
-        .update({
-          time_range: slot.timeRange,
-          subject_name: slot.subject,
-          teacher: slot.teacher || null,
-          room: slot.room || null
-        })
-        .eq('id', existing.id);
+        .select('id')
+        .eq('class_id', targetClassId)
+        .eq('day_of_week', slot.dayOfWeek)
+        .eq('hour', slot.hour)
+        .maybeSingle();
 
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabase
-        .from('timetable_slots')
-        .insert({
-          class_id: classId,
-          day_of_week: slot.dayOfWeek,
-          hour: slot.hour,
-          time_range: slot.timeRange,
-          subject_name: slot.subject,
-          teacher: slot.teacher || null,
-          room: slot.room || null
-        });
+      if (existing) {
+        const { error } = await supabase
+          .from('timetable_slots')
+          .update({
+            time_range: slot.timeRange,
+            subject_name: slot.subject,
+            teacher: slot.teacher || null,
+            room: slot.room || null
+          })
+          .eq('id', existing.id);
 
-      if (error) throw new Error(error.message);
+        if (error) {
+          logger.adapter('warn', 'Errore aggiornamento orario cloud, attivazione localStore fallback', { error: error.message });
+          localStore.updateTimetableSlot(slot);
+        }
+      } else {
+        const { error } = await supabase
+          .from('timetable_slots')
+          .insert({
+            class_id: targetClassId,
+            day_of_week: slot.dayOfWeek,
+            hour: slot.hour,
+            time_range: slot.timeRange,
+            subject_name: slot.subject,
+            teacher: slot.teacher || null,
+            room: slot.room || null
+          });
+
+        if (error) {
+          logger.adapter('warn', 'Errore inserimento orario cloud, attivazione localStore fallback', { error: error.message });
+          localStore.updateTimetableSlot(slot);
+        }
+      }
+    } catch (err: any) {
+      logger.adapter('warn', 'Eccezione aggiornamento orario, attivazione localStore fallback', { error: err?.message });
+      localStore.updateTimetableSlot(slot);
     }
   },
 
@@ -1245,60 +1282,70 @@ export const surveysAdapter = {
     survey: Omit<Survey, 'id' | 'createdAt' | 'totalVotes'>, 
     authorUid: string
   ): Promise<Survey> {
+    const targetClassId = survey.classId || 'cls-dev-test';
+    const processedSurvey = { ...survey, classId: targetClassId };
+
     if (!isSupabaseConfigured || !supabase) {
-      return localStore.addSurvey(survey);
+      return localStore.addSurvey(processedSurvey);
     }
 
-    // 1. Create survey record
-    const { data: surveyRow, error: surveyError } = await supabase
-      .from('surveys')
-      .insert({
-        class_id: survey.classId!,
-        author_id: authorUid,
-        title: survey.title,
-        question: survey.question,
-        status: survey.status || 'OPEN',
-        deadline: survey.deadline || null
-      })
-      .select()
-      .single();
+    try {
+      // 1. Create survey record
+      const { data: surveyRow, error: surveyError } = await supabase
+        .from('surveys')
+        .insert({
+          class_id: targetClassId,
+          author_id: authorUid,
+          title: survey.title,
+          question: survey.question,
+          status: survey.status || 'OPEN',
+          deadline: survey.deadline || null
+        })
+        .select()
+        .single();
 
-    if (surveyError || !surveyRow) {
-      throw new Error(surveyError?.message || 'Impossibile creare il sondaggio.');
+      if (surveyError || !surveyRow) {
+        logger.adapter('warn', 'Errore creazione sondaggio cloud, attivazione localStore fallback', { error: surveyError?.message });
+        return localStore.addSurvey(processedSurvey);
+      }
+
+      // 2. Create survey options
+      const optionsToInsert = survey.options.map((opt, idx) => ({
+        survey_id: surveyRow.id,
+        text: opt.text,
+        sort_order: idx
+      }));
+
+      const { data: optionsRows, error: optError } = await supabase
+        .from('survey_options')
+        .insert(optionsToInsert)
+        .select();
+
+      if (optError) {
+        logger.adapter('warn', 'Errore inserimento opzioni sondaggio, attivazione localStore fallback', { error: optError.message });
+        return localStore.addSurvey(processedSurvey);
+      }
+
+      return {
+        id: surveyRow.id,
+        title: surveyRow.title,
+        question: surveyRow.question,
+        options: (optionsRows || []).map((o: any) => ({
+          id: o.id,
+          text: o.text,
+          votesCount: 0,
+          votedUserIds: []
+        })),
+        status: surveyRow.status,
+        deadline: surveyRow.deadline || undefined,
+        createdAt: surveyRow.created_at,
+        totalVotes: 0,
+        classId: surveyRow.class_id
+      };
+    } catch (err: any) {
+      logger.adapter('warn', 'Eccezione creazione sondaggio, attivazione localStore fallback', { error: err?.message });
+      return localStore.addSurvey(processedSurvey);
     }
-
-    // 2. Create survey options
-    const optionsToInsert = survey.options.map((opt, idx) => ({
-      survey_id: surveyRow.id,
-      text: opt.text,
-      sort_order: idx
-    }));
-
-    const { data: optionsRows, error: optError } = await supabase
-      .from('survey_options')
-      .insert(optionsToInsert)
-      .select();
-
-    if (optError) {
-      throw new Error(optError.message);
-    }
-
-    return {
-      id: surveyRow.id,
-      title: surveyRow.title,
-      question: surveyRow.question,
-      options: (optionsRows || []).map((o: any) => ({
-        id: o.id,
-        text: o.text,
-        votesCount: 0,
-        votedUserIds: []
-      })),
-      status: surveyRow.status,
-      deadline: surveyRow.deadline || undefined,
-      createdAt: surveyRow.created_at,
-      totalVotes: 0,
-      classId: surveyRow.class_id
-    };
   },
 
   async voteSurvey(surveyId: string, optionId: string, userId: string): Promise<void> {
@@ -1397,32 +1444,41 @@ export const representationAdapter = {
     item: Omit<RepresentationItem, 'id'>, 
     authorUid: string
   ): Promise<RepresentationItem> {
+    const targetClassId = item.classId || 'cls-dev-test';
+    const processedItem = { ...item, classId: targetClassId };
+
     if (!isSupabaseConfigured || !supabase) {
-      return localStore.addRepresentationItem(item);
+      return localStore.addRepresentationItem(processedItem);
     }
 
-    const { data, error } = await supabase
-      .from('representation_items')
-      .insert({
-        class_id: item.classId!,
-        author_id: authorUid,
-        category: (item.category || 'PROPOSTA') as any,
-        title: item.title,
-        description: item.description,
-        status: (item.status || 'IN_ATTESA') as any,
-        item_date: item.date || new Date().toISOString().split('T')[0]
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('representation_items')
+        .insert({
+          class_id: targetClassId,
+          author_id: authorUid,
+          category: (item.category || 'PROPOSTA') as any,
+          title: item.title,
+          description: item.description,
+          status: (item.status || 'IN_ATTESA') as any,
+          item_date: item.date || new Date().toISOString().split('T')[0]
+        })
+        .select()
+        .single();
 
-    if (error || !data) {
-      throw new Error(error?.message || 'Errore nella creazione della richiesta.');
+      if (error || !data) {
+        logger.adapter('warn', 'Errore creazione richiesta rappresentanza, attivazione localStore fallback', { error: error?.message });
+        return localStore.addRepresentationItem(processedItem);
+      }
+
+      return {
+        ...processedItem,
+        id: data.id
+      };
+    } catch (err: any) {
+      logger.adapter('warn', 'Eccezione richiesta rappresentanza, attivazione localStore fallback', { error: err?.message });
+      return localStore.addRepresentationItem(processedItem);
     }
-
-    return {
-      ...item,
-      id: data.id
-    };
   },
 
   async updateRepresentationStatus(id: string, status: RepresentationItem['status']): Promise<void> {

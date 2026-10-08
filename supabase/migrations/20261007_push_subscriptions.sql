@@ -162,3 +162,27 @@ create policy "Users can delete their own push subscriptions"
 -- Indexes for fast dispatch
 create index if not exists idx_push_subscriptions_class_id on public.push_subscriptions(class_id);
 create index if not exists idx_push_subscriptions_user_id on public.push_subscriptions(user_id);
+
+-- Ensure schema permissions and function permissions for RLS policies
+grant usage on schema public to authenticated, anon, service_role;
+grant execute on all functions in schema public to authenticated, anon, service_role;
+alter default privileges in schema public grant execute on functions to authenticated, anon, service_role;
+
+-- Grant permissions and set SECURITY DEFINER dynamically on key helper functions (is_class_member, get_class_role, toggle_volunteer_reservation)
+do $$
+declare
+  r record;
+begin
+  for r in
+    select p.oid::regprocedure as func_signature
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' 
+      and p.proname in ('is_class_member', 'get_class_role', 'toggle_volunteer_reservation')
+  loop
+    execute format('grant execute on function %s to authenticated, anon, service_role', r.func_signature);
+    execute format('alter function %s security definer', r.func_signature);
+  end loop;
+exception when others then
+  null;
+end $$;

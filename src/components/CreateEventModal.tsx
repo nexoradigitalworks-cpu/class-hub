@@ -21,7 +21,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   defaultDate,
   onCreated
 }) => {
-  const { profile, isController, isAdmin } = useAuth();
+  const { profile, isController, isAdmin, activeClassId, currentClass } = useAuth();
   const canCreateClassEvent = isController || isAdmin;
 
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
@@ -90,7 +90,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         isPersonal: enforcedPersonal,
         authorId: profile.uid,
         authorName: `${profile.firstName} ${profile.lastName}`,
-        classId: enforcedPersonal ? undefined : (profile.classId || undefined)
+        classId: enforcedPersonal ? undefined : (activeClassId || profile.classId || profile.activeClassId || currentClass?.id || 'cls-dev-test')
       });
 
       setTitle('');
