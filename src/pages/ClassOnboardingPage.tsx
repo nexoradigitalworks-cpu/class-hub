@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { AvatarIcon } from '../components/AvatarIcon';
 import { ClassHubLogo } from '../components/ClassHubLogo';
 
-type OnboardingStep = 'select' | 'join' | 'create' | 'created_success';
+type OnboardingStep = 'select' | 'join' | 'create' | 'created_success' | 'joined_success';
 
 interface ClassOnboardingPageProps {
   initialSuccessInfo?: { classId: string; code: string; name: string } | null;
@@ -38,6 +38,9 @@ export const ClassOnboardingPage: React.FC<ClassOnboardingPageProps> = ({
     code: string;
     name: string;
   } | null>(initialSuccessInfo);
+  const [joinedClassInfo, setJoinedClassInfo] = useState<{
+    className: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const clearError = () => setError(null);
@@ -54,10 +57,10 @@ export const ClassOnboardingPage: React.FC<ClassOnboardingPageProps> = ({
 
     try {
       setLoading(true);
-      await joinClass(clean);
-      if (onComplete) {
-        onComplete();
-      }
+      const res = await joinClass(clean);
+      const targetClassName = res?.className || 'Classe';
+      setJoinedClassInfo({ className: targetClassName });
+      setStep('joined_success');
     } catch (err: any) {
       setError(err?.message || 'Codice classe non valido. Controlla il codice e riprova.');
     } finally {
@@ -458,6 +461,92 @@ export const ClassOnboardingPage: React.FC<ClassOnboardingPageProps> = ({
                   className="w-full py-2.5 px-4 bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] text-white font-semibold rounded-xl text-sm transition shadow-sm shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Continua a ClassHub</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+
+            {/* STEP 5: JOINED SUCCESS / FIRST-TIME WELCOME SCREEN WITH NAME AND CLASS */}
+            {step === 'joined_success' && (
+              <motion.div
+                key="step-joined-success"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2 }}
+                className="text-center space-y-6"
+              >
+                <div className="relative inline-flex items-center justify-center mx-auto">
+                  <div className="w-16 h-16 rounded-3xl bg-blue-100 text-[#2563EB] flex items-center justify-center shadow-xs">
+                    <GraduationCap className="w-8 h-8" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shadow-xs">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-[#2563EB] text-xs font-bold">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Benvenuto in classe!</span>
+                  </span>
+
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+                    {profile?.firstName ? `Benvenuto, ${profile.firstName}!` : 'Benvenuto!'}
+                  </h1>
+
+                  <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                    Ti sei unito con successo alla tua classe.
+                  </p>
+                </div>
+
+                {/* Card with Name and Class Name */}
+                <div className="p-5 bg-gradient-to-br from-blue-50/80 via-indigo-50/50 to-slate-50 rounded-2xl border border-blue-200/80 text-left space-y-3.5 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <AvatarIcon avatarId={profile?.avatarId || 'avatar-blue'} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Studente
+                      </span>
+                      <p className="text-sm font-extrabold text-slate-900 truncate">
+                        {profile?.firstName} {profile?.lastName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {profile?.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-blue-200/60 flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                      <School className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
+                        Classe assegnata
+                      </span>
+                      <p className="text-sm font-black text-slate-900 truncate">
+                        {joinedClassInfo?.className || profile?.className || 'La tua Classe'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Ora hai accesso a calendario, interrogazioni, orario, avvisi e sondaggi della tua classe.
+                </p>
+
+                {/* Enter Workspace Button */}
+                <button
+                  onClick={() => {
+                    if (onComplete) {
+                      onComplete();
+                    } else {
+                      window.location.reload();
+                    }
+                  }}
+                  className="w-full py-3 px-4 bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] text-white font-bold rounded-xl text-sm transition shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Entra nella tua Classe</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </motion.div>

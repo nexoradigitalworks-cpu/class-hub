@@ -21,7 +21,8 @@ export type NavigationTab =
   | 'materiali' 
   | 'sondaggi' 
   | 'rappresentanza' 
-  | 'controllo';
+  | 'controllo'
+  | 'account';
 
 interface SidebarProps {
   currentTab: NavigationTab;
@@ -107,6 +108,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, count
       icon: Users,
       color: 'text-purple-600',
       badge: isAdmin ? 'Admin' : 'Classe'
+    },
+    {
+      id: 'account' as NavigationTab,
+      label: 'Il mio Account',
+      icon: GraduationCap,
+      color: 'text-blue-600',
+      badge: null
     }
   ];
 
@@ -283,9 +291,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, count
         <PWAInstallButton variant="sidebar" />
       </div>
 
-      {/* User Footer Card & Logout */}
+      {/* User Footer Card & Quick Profile Access */}
       <div className="p-3 border-t border-slate-100 bg-slate-50/50">
-        <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white border border-slate-200/70 shadow-xs">
+        <button
+          onClick={() => onSelectTab('account')}
+          className={`w-full flex items-center justify-between gap-2 p-2 rounded-xl border transition shadow-xs cursor-pointer text-left ${
+            currentTab === 'account'
+              ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-500/20'
+              : 'bg-white border-slate-200/70 hover:bg-slate-100/70'
+          }`}
+          title="Apri impostazioni del tuo Account"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <AvatarIcon 
               avatarId={profile?.avatarId || 'avatar-blue'} 
@@ -301,14 +317,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, count
             </div>
           </div>
 
-          <button
-            onClick={() => logout()}
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0 cursor-pointer"
-            title="Esci dall'account"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
+          <span className="text-[10px] font-bold text-blue-600 hover:text-blue-800 shrink-0 px-1">
+            Profilo
+          </span>
+        </button>
 
         <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-slate-400 font-medium">
           <button

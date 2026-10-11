@@ -240,7 +240,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#F8FAFC] overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#F8FAFC] overflow-y-auto min-h-full">
       
       {/* Toast Notification */}
       <AnimatePresence>
@@ -317,7 +317,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col flex-1">
         
         {/* Navigation & Filters Sub-header */}
         <div className="px-3 sm:px-6 pt-3 pb-2 bg-white/60 border-b border-slate-200/60 shrink-0">
@@ -325,8 +325,9 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
             
             {/* Welcome Greeting & Range Title */}
             <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-bold text-blue-600">
-                {profile?.firstName ? `Ciao, ${profile.firstName}!` : 'Ciao!'}
+              <span className="text-sm sm:text-base font-extrabold text-blue-600 flex items-center gap-1.5">
+                <span>{profile?.firstName ? `Ciao, ${profile.firstName}!` : 'Ciao!'}</span>
+                <span className="text-base sm:text-lg inline-block animate-bounce" role="img" aria-label="saluto">👋</span>
               </span>
               <h1 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight capitalize text-slate-900 leading-tight mt-0.5">
                 {getHeaderTitle()}
@@ -413,7 +414,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
         {/* -------------------- WEEK VIEW (LUNEDÌ - VENERDÌ) -------------------- */}
         {rangeMode === 'week' && (
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex flex-col">
             
             {/* Mobile Week Strip (Monday to Friday Selector) */}
             <div className="sm:hidden px-3 py-2 bg-white border-b border-slate-200/80 shrink-0">
@@ -723,7 +724,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
             </div>
 
             {/* Mobile View: Dedicated Day Details or Full 5-Day Stack (with generous pb-32 so it is NEVER covered!) */}
-            <div className="sm:hidden flex-1 overflow-y-auto px-3 pt-3 pb-32 bg-[#F8FAFC]">
+            <div className="sm:hidden px-3 pt-3 pb-32 bg-[#F8FAFC]">
               
               {mobileWeekView === 'day' ? (
                 /* Focused Single Day View on Mobile */
@@ -1005,7 +1006,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
         {/* -------------------- MONTH VIEW (CALENDARIO COMPLETO) -------------------- */}
         {rangeMode === 'month' && (
-          <div className="flex-1 flex flex-col p-3 sm:p-6 overflow-y-auto pb-32 lg:pb-8 space-y-4">
+          <div className="flex flex-col p-3 sm:p-6 pb-32 lg:pb-8 space-y-4">
             
             {/* Month Calendar Card Container */}
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-3 sm:p-5 flex flex-col">

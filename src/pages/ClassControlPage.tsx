@@ -25,7 +25,7 @@ export const ClassControlPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showProjectorModal, setShowProjectorModal] = useState(false);
-  const [showDebugConsole, setShowDebugConsole] = useState(true);
+  const [showDebugConsole, setShowDebugConsole] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
 
@@ -124,7 +124,7 @@ export const ClassControlPage: React.FC = () => {
   const adminsCount = displayMembers.filter(m => m.role === 'ADMIN').length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 max-w-6xl mx-auto w-full">
       
       {/* Toast Notification */}
       <AnimatePresence>
@@ -176,61 +176,61 @@ export const ClassControlPage: React.FC = () => {
       </div>
 
       {/* Hero Classroom Banner Card with Code & Direct Link */}
-      <div className="relative rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white p-6 sm:p-8 shadow-lg overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute right-10 top-6 opacity-15">
-          <GraduationCap className="w-48 h-48" />
+      <div className="relative rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white p-4 sm:p-7 lg:p-8 shadow-lg overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-48 sm:w-64 h-48 sm:h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute right-4 sm:right-10 top-4 sm:top-6 opacity-10 sm:opacity-15 pointer-events-none">
+          <GraduationCap className="w-28 h-28 sm:w-48 sm:h-48" />
         </div>
 
-        <div className="relative z-10 max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-semibold">
-            <School className="w-3.5 h-3.5" />
-            <span>{schoolName}</span>
+        <div className="relative z-10 max-w-2xl space-y-3 sm:space-y-4">
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] sm:text-xs font-semibold">
+            <School className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate max-w-[200px] sm:max-w-none">{schoolName}</span>
           </div>
 
           <div>
-            <h2 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+            <h2 className="text-xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight wrap-break-word">
               {className}
             </h2>
-            <p className="text-sm sm:text-base text-blue-100 mt-1">
-              Anno Scolastico {academicYear} · {displayMembers.length} iscritti ({studentsCount} studenti, {controllersCount} controller, {adminsCount} admin)
+            <p className="text-xs sm:text-base text-blue-100 mt-1">
+              A.S. {academicYear} · {displayMembers.length} iscritti ({studentsCount} studenti, {controllersCount} controller, {adminsCount} admin)
             </p>
           </div>
 
           {/* Classroom Code Display Card */}
-          <div className="pt-2">
-            <div className="inline-flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3 sm:p-4 rounded-2xl bg-white/10 backdrop-blur-lg border border-white/20 shadow-inner">
-              <div>
+          <div className="pt-1 sm:pt-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur-lg border border-white/20 shadow-inner">
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-blue-200 block">
                   Codice Corso / Accesso Studenti
                 </span>
-                <span className="text-2xl sm:text-3xl font-mono font-black tracking-widest text-white">
+                <span className="text-2xl sm:text-3xl font-mono font-black tracking-widest text-white select-all">
                   {classCode}
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 sm:ml-6">
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-1 sm:pt-0">
                 <button
                   onClick={handleCopyCode}
-                  className="px-3.5 py-2 rounded-xl bg-white text-slate-900 hover:bg-blue-50 transition text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 rounded-xl bg-white text-slate-900 hover:bg-blue-50 transition text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                   title="Copia codice"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? 'Copiato!' : 'Copia Codice'}</span>
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copiato!' : 'Copia'}</span>
                 </button>
 
                 <button
                   onClick={handleCopyLink}
-                  className="px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition text-xs font-bold flex items-center gap-1.5 backdrop-blur-md cursor-pointer"
+                  className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition text-xs font-bold flex items-center justify-center gap-1.5 backdrop-blur-md cursor-pointer active:scale-95"
                   title="Copia link di invito"
                 >
-                  {copiedLink ? <Check className="w-4 h-4 text-emerald-300" /> : <ExternalLink className="w-4 h-4" />}
-                  <span className="hidden sm:inline">Link Invito</span>
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                  <span>Link Invito</span>
                 </button>
 
                 <button
                   onClick={() => setShowProjectorModal(true)}
-                  className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition backdrop-blur-md cursor-pointer"
+                  className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition backdrop-blur-md cursor-pointer active:scale-95 shrink-0"
                   title="Mostra codice a tutto schermo per la LIM / proiettore"
                 >
                   <Maximize2 className="w-4 h-4" />
@@ -441,16 +441,16 @@ export const ClassControlPage: React.FC = () => {
               const initials = `${member.firstName?.[0] || ''}${member.lastName?.[0] || ''}`;
 
               return (
-                <div key={memberUid} className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50/60 transition px-2 rounded-xl">
+                <div key={memberUid} className="py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 hover:bg-slate-50/60 transition px-2 rounded-xl">
                   <div className="flex items-center gap-3 min-w-0">
                     <AvatarIcon 
                       avatarId={member.avatarId || 'avatar-blue'} 
                       initials={initials}
                       size="sm" 
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900 truncate">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                           {member.firstName} {member.lastName}
                         </span>
                         {isCurrentUser && (
@@ -463,13 +463,13 @@ export const ClassControlPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-2">
+                  <div className="shrink-0 flex items-center justify-between sm:justify-end gap-2 pl-11 sm:pl-0">
                     {updatingRoleUid === memberUid && (
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600" />
                     )}
 
                     {isAdmin ? (
-                      <div className="w-36 sm:w-44">
+                      <div className="w-full sm:w-40">
                         <FormSelect
                           value={member.role}
                           onChange={(val) => handleRoleChange(memberUid, val as UserRole)}
@@ -491,8 +491,8 @@ export const ClassControlPage: React.FC = () => {
 
       </div>
 
-      {/* Unified Debugging Console & Log Viewer Utility */}
-      {(isAdmin || isController) && (
+      {/* Unified Debugging Console & Log Viewer Utility (Admin Only, Default Closed) */}
+      {isAdmin && (
         <div className="pt-4 border-t border-slate-200/80 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

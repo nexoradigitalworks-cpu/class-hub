@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   GraduationCap, Eye, EyeOff, Loader2, AlertCircle, 
-  CheckCircle2, ArrowRight, ArrowLeft, Mail, Lock, User,
-  ShieldCheck, UserCog, Zap
+  CheckCircle2, ArrowRight, ArrowLeft, Mail, Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PREDEFINED_AVATARS } from '../utils/theme';
@@ -14,7 +13,7 @@ import { isSupabaseConfigured } from '../lib/supabase';
 type AuthMode = 'login' | 'register' | 'forgot_password';
 
 export const AuthPage: React.FC = () => {
-  const { loginWithEmail, loginAsDeveloper, registerWithEmail, resetPassword } = useAuth();
+  const { loginWithEmail, registerWithEmail, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -601,12 +600,6 @@ export const AuthPage: React.FC = () => {
 
         </div>
 
-        <DevAuthSection 
-          clearErrors={clearErrors} 
-          setLoading={setLoading} 
-          setError={setError} 
-          parseAuthError={parseAuthError} 
-        />
 
         {/* Minimal Footer & Legal Links */}
         <div className="mt-4 text-center space-y-2">
@@ -643,82 +636,4 @@ export const AuthPage: React.FC = () => {
   );
 };
 
-const DevAuthSection: React.FC<{ 
-  clearErrors: () => void; 
-  setLoading: (l: boolean) => void; 
-  setError: (e: string | null) => void;
-  parseAuthError: (err: any) => string;
-}> = ({ clearErrors, setLoading, setError, parseAuthError }) => {
-  const { loginAsDeveloper } = useAuth();
-
-  return (
-    <div className="mt-5 p-4 rounded-3xl bg-white/90 backdrop-blur-md border border-amber-200/90 shadow-lg shadow-amber-500/5">
-      <div className="flex items-center gap-2 mb-2.5">
-        <div className="w-7 h-7 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
-          <ShieldCheck className="w-4 h-4" />
-        </div>
-        <div>
-          <h3 className="text-xs font-bold text-amber-900">Area Sviluppo & Test (DEV MODE)</h3>
-          <p className="text-[10px] text-amber-700/80">Accesso rapido locale per testare i ruoli</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 pt-1">
-        <button
-          type="button"
-          onClick={async () => {
-            clearErrors();
-            try {
-              setLoading(true);
-              await loginAsDeveloper('developer');
-            } catch (err: any) {
-              setError(parseAuthError(err));
-            } finally {
-              setLoading(false);
-            }
-          }}
-          className="px-2 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-900 transition flex flex-col items-center gap-1 cursor-pointer"
-        >
-          <UserCog className="w-3.5 h-3.5 text-amber-700" />
-          <span>Admin Test</span>
-        </button>
-        <button
-          type="button"
-          onClick={async () => {
-            clearErrors();
-            try {
-              setLoading(true);
-              await loginAsDeveloper('controller');
-            } catch (err: any) {
-              setError(parseAuthError(err));
-            } finally {
-              setLoading(false);
-            }
-          }}
-          className="px-2 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-900 transition flex flex-col items-center gap-1 cursor-pointer"
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-700" />
-          <span>Controller</span>
-        </button>
-        <button
-          type="button"
-          onClick={async () => {
-            clearErrors();
-            try {
-              setLoading(true);
-              await loginAsDeveloper('student');
-            } catch (err: any) {
-              setError(parseAuthError(err));
-            } finally {
-              setLoading(false);
-            }
-          }}
-          className="px-2 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-900 transition flex flex-col items-center gap-1 cursor-pointer"
-        >
-          <User className="w-3.5 h-3.5 text-amber-700" />
-          <span>Studente</span>
-        </button>
-      </div>
-    </div>
-  );
-};
 
