@@ -41,6 +41,16 @@ export const AuthPage: React.FC = () => {
     const message = err?.message || '';
     const lowerMessage = message.toLowerCase();
 
+    // Explicit check for unconfirmed email
+    if (
+      code === 'email_not_confirmed' ||
+      lowerMessage.includes('email not confirmed') ||
+      lowerMessage.includes('email_not_confirmed') ||
+      lowerMessage.includes('non confermata')
+    ) {
+      return "Email non confermata. Controlla la tua casella di posta per verificare l'account prima di accedere.";
+    }
+
     // Supabase Auth error patterns
     if (
       code === 'invalid_credentials' ||
@@ -133,7 +143,13 @@ export const AuthPage: React.FC = () => {
 
     try {
       setLoading(true);
-      await registerWithEmail(email, password, firstName, lastName, selectedAvatarId);
+      const res = await registerWithEmail(email, password, firstName, lastName, selectedAvatarId);
+      if (res?.needsEmailConfirmation) {
+        setResetSuccessMessage("Registrazione completata! Ti abbiamo inviato un'email di verifica all'indirizzo indicato. Clicca sul link ricevuto prima di effettuare l'accesso.");
+        setMode('login');
+        setPassword('');
+        setConfirmPassword('');
+      }
     } catch (err: any) {
       setError(parseAuthError(err));
     } finally {
@@ -632,7 +648,7 @@ const DevAuthSection: React.FC<{
   setLoading: (l: boolean) => void; 
   setError: (e: string | null) => void;
   parseAuthError: (err: any) => string;
-}> = import.meta.env.DEV ? ({ clearErrors, setLoading, setError, parseAuthError }) => {
+}> = ({ clearErrors, setLoading, setError, parseAuthError }) => {
   const { loginAsDeveloper } = useAuth();
 
   return (
@@ -704,5 +720,5 @@ const DevAuthSection: React.FC<{
       </div>
     </div>
   );
-} : () => null;
+};
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { materialsAdapter, timetableAdapter } from '../services/adapters';
-import { X, BookOpen, Upload, FileText, Image } from 'lucide-react';
+import { X, BookOpen, Upload, FileText, Image, AlertCircle } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { FILE_FORMAT_OPTIONS, formatSubjectToOption } from '../utils/dropdownPresets';
 import { SubjectItem } from '../types';
@@ -29,9 +29,11 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
   const [localFileSize, setLocalFileSize] = useState<string | null>(null);
   const [localFileData, setLocalFileData] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setError(null);
       timetableAdapter.getSubjects(profile?.classId || '').then((classSubs) => {
         setSubjects(classSubs);
         if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
@@ -83,14 +85,18 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return;
+    setError(null);
+    if (!title.trim()) {
+      setError('Inserisci il titolo del materiale.');
+      return;
+    }
 
     try {
       setIsUploading(true);
       await materialsAdapter.uploadAndAddMaterial(
         {
           subject,
-          title,
+          title: title.trim(),
           description,
           url: url || undefined,
           fileData: localFileData || undefined,
@@ -112,7 +118,7 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
       onCreated?.();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Errore nel salvataggio del materiale.');
+      setError(err.message || 'Errore nel salvataggio del materiale.');
     } finally {
       setIsUploading(false);
     }
@@ -138,6 +144,13 @@ export const CreateMaterialModal: React.FC<Props> = ({ isOpen, onClose, onCreate
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {error && (
+          <div className="mt-4 flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           

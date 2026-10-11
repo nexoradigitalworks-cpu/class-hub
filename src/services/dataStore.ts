@@ -1,11 +1,11 @@
-import { format, addDays } from 'date-fns';
+import { format, addDays, subDays } from 'date-fns';
 import { 
   UserProfile, CalendarEvent, Interrogation, Notice, 
   MaterialItem, Survey, RepresentationItem, VolunteerSlot, UserRole,
   ClassroomControl, TimetableSlot, Classroom, ClassMember, UserMembership, SubjectItem 
 } from '../types';
 
-const STORAGE_KEY = 'classhub_db_state_v4';
+const STORAGE_KEY = 'classhub_db_state_v5';
 
 // Preset sample users including fake students and fake controllers
 export const PRESET_USERS: UserProfile[] = [
@@ -220,6 +220,9 @@ const getInitialState = (): ClassHubDataState => {
   const day3Str = format(addDays(today, 3), 'yyyy-MM-dd');
   const day5Str = format(addDays(today, 5), 'yyyy-MM-dd');
   const day8Str = format(addDays(today, 8), 'yyyy-MM-dd');
+  const past1Str = format(subDays(today, 2), 'yyyy-MM-dd');
+  const past3Str = format(subDays(today, 4), 'yyyy-MM-dd');
+  const past6Str = format(subDays(today, 7), 'yyyy-MM-dd');
 
   const usersMap: Record<string, UserProfile> = {};
   PRESET_USERS.forEach(u => {
@@ -311,6 +314,36 @@ const getInitialState = (): ClassHubDataState => {
       isPersonal: false,
       authorId: 'developer-test-uid',
       authorName: 'ClassHub Developer',
+      createdAt: new Date().toISOString()
+    },
+    'ev-past-1': {
+      id: 'ev-past-1',
+      title: 'Verifica Scritta di Italiano: Giacomo Leopardi e lo Zibaldone',
+      subject: 'Italiano',
+      type: 'VERIFICA',
+      date: past3Str,
+      startTime: '08:00',
+      endTime: '10:00',
+      teacher: 'Prof. De Luca',
+      description: 'Analisi comparata tra l\'Idillio e i Canti pisano-recanatesi.',
+      isPersonal: false,
+      authorId: 'sofia-controller-uid',
+      authorName: 'Sofia Bianchi (Controller)',
+      createdAt: new Date().toISOString()
+    },
+    'ev-past-2': {
+      id: 'ev-past-2',
+      title: 'Consegna Relazione di Laboratorio di Chimica Organica',
+      subject: 'Scienze',
+      type: 'COMPITO',
+      date: past6Str,
+      startTime: '12:00',
+      endTime: '13:00',
+      teacher: 'Prof.ssa Morelli',
+      description: 'Consegna elaborato in formato PDF con tabelle e grafici delle titolazioni.',
+      isPersonal: false,
+      authorId: 'matteo-controller-uid',
+      authorName: 'Matteo Ferrari (Controller)',
       createdAt: new Date().toISOString()
     }
   };
@@ -404,6 +437,40 @@ const getInitialState = (): ClassHubDataState => {
       notes: 'Definizione di derivata, significato geometrico e teoremi del calcolo differenziale.',
       volunteers: [],
       volunteerIds: []
+    },
+    'int-past-1': {
+      id: 'int-past-1',
+      title: 'Interrogazione Fisica: Cinematica e Moti Circolari (Conclusa)',
+      subject: 'Fisica',
+      date: past3Str,
+      startTime: '09:00',
+      endTime: '10:00',
+      teacher: 'Prof. Rinaldi',
+      maxVolunteers: 3,
+      status: 'CLOSED',
+      notes: 'Esame completato con successo. Ottime risposte sui moti accelerati.',
+      volunteers: [
+        { userId: 'marco-student-uid', userName: 'Marco Rossi', userAvatar: 'avatar-blue', timestamp: new Date().toISOString() },
+        { userId: 'chiara-student-uid', userName: 'Chiara Colombo', userAvatar: 'avatar-rose', timestamp: new Date().toISOString() }
+      ],
+      volunteerIds: ['marco-student-uid', 'chiara-student-uid']
+    },
+    'int-past-2': {
+      id: 'int-past-2',
+      title: 'Interrogazione Italiano: Canto VI del Purgatorio di Dante (Conclusa)',
+      subject: 'Italiano',
+      date: past6Str,
+      startTime: '10:00',
+      endTime: '11:00',
+      teacher: 'Prof. De Luca',
+      maxVolunteers: 3,
+      status: 'CLOSED',
+      notes: 'Analisi testuale, invettiva politica e figure retoriche.',
+      volunteers: [
+        { userId: 'alessandro-student-uid', userName: 'Alessandro Russo', userAvatar: 'avatar-teal', timestamp: new Date().toISOString() },
+        { userId: 'giulia-student-uid', userName: 'Giulia Romano', userAvatar: 'avatar-purple', timestamp: new Date().toISOString() }
+      ],
+      volunteerIds: ['alessandro-student-uid', 'giulia-student-uid']
     }
   };
 
@@ -433,6 +500,15 @@ const getInitialState = (): ClassHubDataState => {
       date: todayStr,
       priority: 'NORMAL',
       authorName: 'Matteo Ferrari (Controller)',
+      createdAt: new Date().toISOString()
+    },
+    'not-past-1': {
+      id: 'not-past-1',
+      title: 'Circolare n. 138: Esiti colloqui con le famiglie del primo quadrimestre',
+      content: 'Pubblicati in segreteria e sul registro elettronico i report riepilogativi dei ricevimenti pomeridiani.',
+      date: past6Str,
+      priority: 'NORMAL',
+      authorName: 'ClassHub Developer (Admin)',
       createdAt: new Date().toISOString()
     }
   };
@@ -470,6 +546,17 @@ const getInitialState = (): ClassHubDataState => {
       fileType: 'PDF',
       date: day3Str,
       authorName: 'Matteo Ferrari (Controller)'
+    },
+    'mat-past-1': {
+      id: 'mat-past-1',
+      subject: 'Italiano',
+      title: 'Appunti Lezione: Il Pessimismo Storico e Cosmico in Leopardi',
+      description: 'Mappa concettuale dettagliata redatta dai rappresentanti di classe.',
+      fileName: 'Leopardi_Appunti_Completi.pdf',
+      fileSize: '2.4 MB',
+      fileType: 'PDF',
+      date: past3Str,
+      authorName: 'Sofia Bianchi (Controller)'
     }
   };
 
@@ -556,29 +643,41 @@ class LocalDataStore {
   }
 
   private loadFromStorage(): ClassHubDataState {
+    const initial = getInitialState();
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.classroomControl && parsed.timetable && parsed.interrogations) {
-          return {
-            ...parsed,
-            classes: parsed.classes || DEFAULT_CLASSES,
-            memberships: parsed.memberships || {}
-          };
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.classroomControl) {
+            return {
+              ...parsed,
+              classes: parsed.classes || DEFAULT_CLASSES,
+              memberships: parsed.memberships || initial.memberships,
+              events: Object.keys(parsed.events || {}).length > 0 ? parsed.events : initial.events,
+              interrogations: Object.keys(parsed.interrogations || {}).length > 0 ? parsed.interrogations : initial.interrogations,
+              notices: Object.keys(parsed.notices || {}).length > 0 ? parsed.notices : initial.notices,
+              materials: Object.keys(parsed.materials || {}).length > 0 ? parsed.materials : initial.materials,
+              surveys: Object.keys(parsed.surveys || {}).length > 0 ? parsed.surveys : initial.surveys,
+              representation: Object.keys(parsed.representation || {}).length > 0 ? parsed.representation : initial.representation,
+              timetable: (parsed.timetable && parsed.timetable.length > 0) ? parsed.timetable : initial.timetable,
+              users: Object.keys(parsed.users || {}).length > 0 ? parsed.users : initial.users
+            };
+          }
         }
       }
     } catch (e) {
       console.warn('Could not read from localStorage, using default data:', e);
     }
-    const initial = getInitialState();
     this.saveToStorage(initial);
     return initial;
   }
 
   private saveToStorage(state: ClassHubDataState) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
     } catch (e) {
       console.error('Could not save to localStorage:', e);
     }
@@ -612,6 +711,16 @@ class LocalDataStore {
     this.state.classes[classroom.id] = classroom;
     this.notify();
     return classroom;
+  }
+
+  public updateClass(classId: string, updates: Partial<Classroom>): Classroom | null {
+    if (!this.state.classes[classId]) return null;
+    this.state.classes[classId] = {
+      ...this.state.classes[classId],
+      ...updates
+    };
+    this.notify();
+    return this.state.classes[classId];
   }
 
   public getAllClasses(): Classroom[] {
@@ -729,6 +838,16 @@ class LocalDataStore {
     this.notify();
   }
 
+  public updateEvent(id: string, updates: Partial<CalendarEvent>): CalendarEvent | null {
+    if (!this.state.events[id]) return null;
+    this.state.events[id] = {
+      ...this.state.events[id],
+      ...updates
+    };
+    this.notify();
+    return this.state.events[id];
+  }
+
   // --- Interrogations & Volunteers ---
   public getInterrogations(classId: string): Interrogation[] {
     return Object.values(this.state.interrogations).filter(i => {
@@ -759,6 +878,16 @@ class LocalDataStore {
       };
       this.notify();
     }
+  }
+
+  public updateInterrogation(id: string, updates: Partial<Interrogation>): Interrogation | null {
+    if (!this.state.interrogations[id]) return null;
+    this.state.interrogations[id] = {
+      ...this.state.interrogations[id],
+      ...updates
+    };
+    this.notify();
+    return this.state.interrogations[id];
   }
 
   public deleteInterrogation(id: string): void {
@@ -844,6 +973,16 @@ class LocalDataStore {
   public deleteNotice(id: string): void {
     delete this.state.notices[id];
     this.notify();
+  }
+
+  public updateNotice(id: string, updates: Partial<Notice>): Notice | null {
+    if (!this.state.notices[id]) return null;
+    this.state.notices[id] = {
+      ...this.state.notices[id],
+      ...updates
+    };
+    this.notify();
+    return this.state.notices[id];
   }
 
   // --- Materials ---

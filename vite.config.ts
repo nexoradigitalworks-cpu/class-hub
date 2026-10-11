@@ -49,7 +49,7 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           navigateFallback: '/index.html',
           // Explicitly forbid caching of Supabase or API endpoints to protect private auth & data
-          navigateFallbackDenylist: [/^\/api/, /supabase\.co/, /supabase/i, /^\/auth/],
+          navigateFallbackDenylist: [/^\/api/, /supabase\.co/, /supabase/i],
           importScripts: ['/sw-push.js'],
           runtimeCaching: [
             {

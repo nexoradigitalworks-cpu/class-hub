@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { ClassroomControl, UserProfile, UserRole, ClassMember } from '../types';
+import { classAdapter } from '../services/adapters';
 import { ROLE_LABELS, AVATAR_COLORS } from '../utils/theme';
 import { FormSelect } from '../components/ui/FormSelect';
 import { ROLE_OPTIONS } from '../utils/dropdownPresets';
@@ -28,10 +29,18 @@ export const ClassControlPage: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
 
-  // Settings states
-  const [allowSelfJoin, setAllowSelfJoin] = useState(true);
-  const [controllerNotices, setControllerNotices] = useState(true);
-  const [lockVolunteers, setLockVolunteers] = useState(false);
+  // Settings states initialized from currentClass
+  const [allowSelfJoin, setAllowSelfJoin] = useState(currentClass?.allowSelfJoin ?? true);
+  const [controllerNotices, setControllerNotices] = useState(currentClass?.controllerCanCreateNotices ?? true);
+  const [lockVolunteers, setLockVolunteers] = useState(currentClass?.lockVolunteersOnDeadline ?? false);
+
+  useEffect(() => {
+    if (currentClass) {
+      setAllowSelfJoin(currentClass.allowSelfJoin ?? true);
+      setControllerNotices(currentClass.controllerCanCreateNotices ?? true);
+      setLockVolunteers(currentClass.lockVolunteersOnDeadline ?? false);
+    }
+  }, [currentClass]);
 
   const handlePushToggle = async () => {
     if (!isSupported) {
@@ -280,9 +289,22 @@ export const ClassControlPage: React.FC = () => {
                 <p className="text-[11px] text-slate-500">Gli studenti possono accedere con il codice</p>
               </div>
               <button
-                onClick={() => {
-                  if (isAdmin) setAllowSelfJoin(!allowSelfJoin);
-                  else showToast('Riservato all\'Admin');
+                onClick={async () => {
+                  if (!isAdmin) {
+                    showToast('Riservato all\'Admin');
+                    return;
+                  }
+                  const newVal = !allowSelfJoin;
+                  setAllowSelfJoin(newVal);
+                  if (currentClass?.id) {
+                    try {
+                      await classAdapter.updateClassSettings(currentClass.id, { allowSelfJoin: newVal });
+                      showToast('Impostazione iscrizione aggiornata');
+                    } catch (err: any) {
+                      setAllowSelfJoin(!newVal);
+                      showToast(err?.message || 'Errore salvataggio impostazione');
+                    }
+                  }
                 }}
                 disabled={!isAdmin}
                 className={`w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${
@@ -298,12 +320,25 @@ export const ClassControlPage: React.FC = () => {
             <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/60">
               <div>
                 <p className="font-bold text-slate-800">Permessi Controller</p>
-                <p className="text-[11px] text-slate-500">I controller pubblicano avvisi e interrogazioni</p>
+                <p className="text-[11px] text-slate-500">I controller pubblicano avvisi e circolari</p>
               </div>
               <button
-                onClick={() => {
-                  if (isAdmin) setControllerNotices(!controllerNotices);
-                  else showToast('Riservato all\'Admin');
+                onClick={async () => {
+                  if (!isAdmin) {
+                    showToast('Riservato all\'Admin');
+                    return;
+                  }
+                  const newVal = !controllerNotices;
+                  setControllerNotices(newVal);
+                  if (currentClass?.id) {
+                    try {
+                      await classAdapter.updateClassSettings(currentClass.id, { controllerCanCreateNotices: newVal });
+                      showToast('Permessi controller aggiornati');
+                    } catch (err: any) {
+                      setControllerNotices(!newVal);
+                      showToast(err?.message || 'Errore salvataggio impostazione');
+                    }
+                  }
                 }}
                 disabled={!isAdmin}
                 className={`w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${
@@ -322,9 +357,22 @@ export const ClassControlPage: React.FC = () => {
                 <p className="text-[11px] text-slate-500">Blocca modifiche alle liste a 24h dall'orale</p>
               </div>
               <button
-                onClick={() => {
-                  if (isAdmin) setLockVolunteers(!lockVolunteers);
-                  else showToast('Riservato all\'Admin');
+                onClick={async () => {
+                  if (!isAdmin) {
+                    showToast('Riservato all\'Admin');
+                    return;
+                  }
+                  const newVal = !lockVolunteers;
+                  setLockVolunteers(newVal);
+                  if (currentClass?.id) {
+                    try {
+                      await classAdapter.updateClassSettings(currentClass.id, { lockVolunteersOnDeadline: newVal });
+                      showToast('Blocco volontari aggiornato');
+                    } catch (err: any) {
+                      setLockVolunteers(!newVal);
+                      showToast(err?.message || 'Errore salvataggio impostazione');
+                    }
+                  }
                 }}
                 disabled={!isAdmin}
                 className={`w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${

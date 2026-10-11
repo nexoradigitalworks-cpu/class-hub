@@ -1,47 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { noticesAdapter } from '../services/adapters';
-import { X, Bell } from 'lucide-react';
+import { X, Bell, AlertCircle, Edit3 } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { PRIORITY_OPTIONS } from '../utils/dropdownPresets';
+import { Notice } from '../types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  noticeToEdit?: Notice | null;
 }
 
-export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated }) => {
+export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated, noticeToEdit }) => {
   const { profile, activeClassId, currentClass } = useAuth();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState<'NORMAL' | 'HIGH'>('NORMAL');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (noticeToEdit) {
+      setTitle(noticeToEdit.title || '');
+      setContent(noticeToEdit.content || '');
+      setPriority(noticeToEdit.priority || 'NORMAL');
+      setDate(noticeToEdit.date || new Date().toISOString().split('T')[0]);
+      setError(null);
+    } else {
+      setTitle('');
+      setContent('');
+      setPriority('NORMAL');
+      setDate(new Date().toISOString().split('T')[0]);
+      setError(null);
+    }
+  }, [noticeToEdit, isOpen]);
 
   if (!isOpen || !profile) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !content) return;
+    setError(null);
+    if (!title.trim() || !content.trim()) {
+      setError('Compila tutti i campi obbligatori.');
+      return;
+    }
 
     const targetClassId = activeClassId || profile.classId || profile.activeClassId || currentClass?.id || 'cls-dev-test';
 
     try {
-      await noticesAdapter.addNotice({
-        title,
-        content,
-        priority,
-        date,
-        authorName: `${profile.firstName} ${profile.lastName} (${profile.role === 'ADMIN' ? 'Admin' : 'Controller'})`,
-        classId: targetClassId
-      }, profile.uid);
+      setSubmitting(true);
+      if (noticeToEdit) {
+        await noticesAdapter.updateNotice(noticeToEdit.id, {
+          title: title.trim(),
+          content: content.trim(),
+          priority,
+          date
+        });
+      } else {
+        await noticesAdapter.addNotice({
+          title: title.trim(),
+          content: content.trim(),
+          priority,
+          date,
+          authorName: `${profile.firstName} ${profile.lastName} (${profile.role === 'ADMIN' ? 'Admin' : 'Controller'})`,
+          classId: targetClassId
+        }, profile.uid);
+      }
 
-      setTitle('');
-      setContent('');
       onCreated?.();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Errore nella pubblicazione dell\'avviso.');
+      setError(err.message || 'Errore durante il salvataggio dell\'avviso.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -52,17 +86,35 @@ export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
             <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
-              <Bell className="w-5 h-5 text-red-500" />
-              <span>Pubblica Avviso o Circolare</span>
+              {noticeToEdit ? (
+                <>
+                  <Edit3 className="w-5 h-5 text-amber-500" />
+                  <span>Modifica Avviso o Circolare</span>
+                </>
+              ) : (
+                <>
+                  <Bell className="w-5 h-5 text-red-500" />
+                  <span>Pubblica Avviso o Circolare</span>
+                </>
+              )}
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Notifica l'intera classe di circolari, cambiamenti di aula o scadenze.
+              {noticeToEdit
+                ? 'Aggiorna i dettagli della circolare o comunicazione per la classe.'
+                : 'Notifica l\'intera classe di circolari, cambiamenti di aula o scadenze.'}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {error && (
+          <div className="mt-4 flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           <div>
@@ -121,15 +173,17 @@ export const CreateNoticeModal: React.FC<Props> = ({ isOpen, onClose, onCreated 
             <button
               type="button"
               onClick={onClose}
+              disabled={submitting}
               className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
             >
               Annulla
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+              disabled={submitting}
+              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-60"
             >
-              Pubblica Avviso
+              {submitting ? 'Salvataggio...' : noticeToEdit ? 'Aggiorna Avviso' : 'Pubblica Avviso'}
             </button>
           </div>
         </form>

@@ -30,7 +30,7 @@ export const InterrogationsPage: React.FC = () => {
   const loadData = async () => {
     if (!profile) return;
     try {
-      const list = await interrogationsAdapter.getInterrogations(profile.classId || '');
+      const list = await interrogationsAdapter.getInterrogations(profile.classId || profile.activeClassId || 'cls-dev-test');
       setInterrogations(list);
     } catch {
       // Fallback

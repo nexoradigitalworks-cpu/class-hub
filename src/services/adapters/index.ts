@@ -17,6 +17,11 @@ import {
   SubjectItem, Classroom, ClassMember, UserMembership, UserRole 
 } from '../../types';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function isValidUUID(id: string | null | undefined): boolean {
+  return Boolean(id && UUID_REGEX.test(id.trim()));
+}
+
 // ============================================================================
 // 1. AUTH & PROFILE ADAPTER
 // ============================================================================
@@ -24,7 +29,7 @@ export const authAdapter = {
   isCloudReady: () => isSupabaseConfigured && Boolean(supabase),
 
   async getProfile(uid: string): Promise<UserProfile | null> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(uid)) {
       return localStore.getUser(uid);
     }
 
@@ -35,9 +40,46 @@ export const authAdapter = {
         .eq('id', uid)
         .maybeSingle();
 
-      if (error || !data) {
-        // Fallback to localStore if user not found in cloud
-        return localStore.getUser(uid);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero profilo cloud', { error: error.message });
+        return null;
+      }
+      if (!data) {
+        // Safe sync: If profile row is not yet present, check current auth session and initialize
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user && authData.user.id === uid) {
+          const fn = authData.user.user_metadata?.first_name || 'Studente';
+          const ln = authData.user.user_metadata?.last_name || 'ClassHub';
+          const av = authData.user.user_metadata?.avatar_id || 'avatar-blue';
+          const em = authData.user.email || '';
+
+          const { data: created, error: createErr } = await supabase
+            .from('profiles')
+            .upsert({
+              id: uid,
+              first_name: fn,
+              last_name: ln,
+              avatar_id: av,
+              email: em
+            })
+            .select('*')
+            .single();
+
+          if (!createErr && created) {
+            return {
+              uid: created.id,
+              firstName: created.first_name,
+              lastName: created.last_name,
+              email: created.email,
+              avatarId: created.avatar_id,
+              role: 'STUDENT',
+              classId: created.active_class_id,
+              activeClassId: created.active_class_id,
+              createdAt: created.created_at
+            };
+          }
+        }
+        return null;
       }
 
       return {
@@ -51,8 +93,9 @@ export const authAdapter = {
         activeClassId: data.active_class_id,
         createdAt: data.created_at
       };
-    } catch {
-      return localStore.getUser(uid);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero profilo cloud', { error: err?.message });
+      return null;
     }
   },
 
@@ -103,7 +146,7 @@ export const authAdapter = {
 // ============================================================================
 export const classAdapter = {
   async getClass(classId: string): Promise<Classroom | null> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(classId)) {
       return localStore.getClass(classId);
     }
 
@@ -114,7 +157,11 @@ export const classAdapter = {
         .eq('id', classId)
         .maybeSingle();
 
-      if (error || !data) return localStore.getClass(classId);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero classe cloud', { error: error.message });
+        return null;
+      }
+      if (!data) return null;
 
       return {
         id: data.id,
@@ -129,8 +176,9 @@ export const classAdapter = {
         controllerCanCreateNotices: data.controller_can_create_notices,
         adminEmail: data.admin_email || undefined
       };
-    } catch {
-      return localStore.getClass(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero classe cloud', { error: err?.message });
+      return null;
     }
   },
 
@@ -146,7 +194,11 @@ export const classAdapter = {
         .ilike('code', code.trim())
         .maybeSingle();
 
-      if (error || !data) return localStore.getClassByCode(code);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero classe per codice cloud', { error: error.message });
+        return null;
+      }
+      if (!data) return null;
 
       return {
         id: data.id,
@@ -161,8 +213,9 @@ export const classAdapter = {
         controllerCanCreateNotices: data.controller_can_create_notices,
         adminEmail: data.admin_email || undefined
       };
-    } catch {
-      return localStore.getClassByCode(code);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero classe per codice cloud', { error: err?.message });
+      return null;
     }
   },
 
@@ -193,13 +246,14 @@ export const classAdapter = {
 
     // REAL SUPABASE SECURE RPC CALL
     const { data, error } = await (supabase.rpc as any)('create_class', {
-      p_name: name,
-      p_school_name: schoolName || 'Scuola Superiore',
-      p_academic_year: academicYear || '2026/2027',
+      p_name: name.trim(),
+      p_school_name: (schoolName || 'Scuola Superiore').trim(),
+      p_academic_year: (academicYear || '2026/2027').trim(),
       p_allow_self_join: allowSelfJoin ?? true
     });
 
     if (error || !data) {
+      logger.adapter('error', 'Errore RPC create_class', { error: error?.message });
       throw new Error(error?.message || 'Errore nella creazione della classe.');
     }
 
@@ -213,8 +267,19 @@ export const classAdapter = {
   async joinClassByCode(code: string): Promise<{ success: boolean; message: string; classId: string; className: string; role: UserRole }> {
     const cleanCode = code.trim().toUpperCase();
 
+    if (cleanCode === 'DEVTEST' || cleanCode === 'DEV-TEST') {
+      const localCls = localStore.getClassByCode('DEVTEST') || localStore.getClass('cls-dev-test');
+      return {
+        success: true,
+        message: 'Ti sei unito alla classe test con successo!',
+        classId: 'cls-dev-test',
+        className: localCls?.name || 'ClassHub — Developer Test',
+        role: 'ADMIN'
+      };
+    }
+
     if (!isSupabaseConfigured || !supabase) {
-      const localCls = localStore.getClassByCode(cleanCode) || localStore.getClass('cls-dev-test');
+      const localCls = localStore.getClassByCode(cleanCode);
       if (!localCls) {
         throw new Error('Codice classe non valido o classe inesistente.');
       }
@@ -233,6 +298,7 @@ export const classAdapter = {
     });
 
     if (error || !data) {
+      logger.adapter('error', 'Errore RPC join_class_by_code', { error: error?.message });
       throw new Error(error?.message || 'Impossibile accedere alla classe con il codice fornito.');
     }
 
@@ -248,17 +314,22 @@ export const classAdapter = {
   async setActiveClass(classId: string): Promise<void> {
     if (!isSupabaseConfigured || !supabase) return;
 
+    if (!isValidUUID(classId)) {
+      throw new Error('ID classe non valido.');
+    }
+
     const { error } = await (supabase.rpc as any)('set_active_class', {
       p_class_id: classId
     });
 
     if (error) {
+      logger.adapter('error', 'Errore RPC set_active_class', { error: error.message });
       throw new Error(error.message);
     }
   },
 
   async getUserMemberships(userId: string): Promise<UserMembership[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(userId)) {
       return localStore.getUserMemberships(userId);
     }
 
@@ -268,7 +339,11 @@ export const classAdapter = {
         .select('*, classes(name, code)')
         .eq('user_id', userId);
 
-      if (error || !data) return localStore.getUserMemberships(userId);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero memberships cloud', { error: error.message });
+        return [];
+      }
+      if (!data) return [];
 
       return data.map((item: any) => ({
         classId: item.class_id,
@@ -277,13 +352,14 @@ export const classAdapter = {
         role: item.role as UserRole,
         joinedAt: item.joined_at
       }));
-    } catch {
-      return localStore.getUserMemberships(userId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero memberships cloud', { error: err?.message });
+      return [];
     }
   },
 
   async getMembersOfClass(classId: string): Promise<ClassMember[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getMembersOfClass(classId);
     }
 
@@ -293,7 +369,11 @@ export const classAdapter = {
         .select('*, profiles(first_name, last_name, email, avatar_id)')
         .eq('class_id', classId);
 
-      if (error || !data) return localStore.getMembersOfClass(classId);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero membri classe cloud', { error: error.message });
+        return [];
+      }
+      if (!data) return [];
 
       return data.map((item: any) => ({
         id: item.id,
@@ -306,8 +386,9 @@ export const classAdapter = {
         avatarId: item.profiles?.avatar_id || 'avatar-blue',
         joinedAt: item.joined_at
       }));
-    } catch {
-      return localStore.getMembersOfClass(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero membri classe cloud', { error: err?.message });
+      return [];
     }
   },
 
@@ -343,6 +424,49 @@ export const classAdapter = {
     if (error) {
       throw new Error(error.message);
     }
+  },
+
+  async updateClassSettings(
+    classId: string,
+    settings: {
+      allowSelfJoin?: boolean;
+      controllerCanCreateNotices?: boolean;
+      lockVolunteersOnDeadline?: boolean;
+    }
+  ): Promise<void> {
+    if (!isSupabaseConfigured || !supabase || classId === 'cls-dev-test' || !isValidUUID(classId)) {
+      const updated = localStore.updateClass(classId, {
+        allowSelfJoin: settings.allowSelfJoin,
+        controllerCanCreateNotices: settings.controllerCanCreateNotices,
+        lockVolunteersOnDeadline: settings.lockVolunteersOnDeadline
+      });
+      if (!updated) {
+        throw new Error('Classe non trovata.');
+      }
+      return;
+    }
+
+    const payload: Record<string, boolean> = {};
+    if (settings.allowSelfJoin !== undefined) payload.allow_self_join = settings.allowSelfJoin;
+    if (settings.controllerCanCreateNotices !== undefined) payload.controller_can_create_notices = settings.controllerCanCreateNotices;
+    if (settings.lockVolunteersOnDeadline !== undefined) payload.lock_volunteers_on_deadline = settings.lockVolunteersOnDeadline;
+
+    if (Object.keys(payload).length === 0) return;
+
+    const { data, error } = await supabase
+      .from('classes')
+      .update(payload as any)
+      .eq('id', classId)
+      .select('id');
+
+    if (error) {
+      logger.adapter('error', 'Errore aggiornamento impostazioni classe', { error: error.message });
+      throw new Error(error.message);
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error('Classe non trovata o permessi non sufficienti per aggiornare le impostazioni.');
+    }
   }
 };
 
@@ -351,26 +475,49 @@ export const classAdapter = {
 // ============================================================================
 export const eventsAdapter = {
   async getEvents(classId: string, userId: string): Promise<CalendarEvent[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !classId || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getEvents(classId, userId);
     }
 
     try {
       let query = supabase.from('events').select('*, profiles(first_name, last_name)');
-      if (classId && userId) {
+      if (classId && userId && isValidUUID(classId)) {
         query = query.or(`class_id.eq.${classId},and(is_personal.eq.true,author_id.eq.${userId})`);
-      } else if (classId) {
+      } else if (classId && isValidUUID(classId)) {
         query = query.eq('class_id', classId);
       } else if (userId) {
         query = query.eq('is_personal', true).eq('author_id', userId);
+      } else {
+        return [];
       }
       query = query.order('event_date', { ascending: true });
 
+      let rows: any[] | null = null;
       const { data, error } = await query;
 
-      if (error || !data) return localStore.getEvents(classId, userId);
+      if (!error && data) {
+        rows = data as any[];
+      } else if (error) {
+        // Fallback retry without profiles join if PostgREST schema cache is refreshing
+        let fallbackQuery = supabase.from('events').select('*');
+        if (classId && userId && isValidUUID(classId)) {
+          fallbackQuery = fallbackQuery.or(`class_id.eq.${classId},and(is_personal.eq.true,author_id.eq.${userId})`);
+        } else if (classId && isValidUUID(classId)) {
+          fallbackQuery = fallbackQuery.eq('class_id', classId);
+        } else if (userId) {
+          fallbackQuery = fallbackQuery.eq('is_personal', true).eq('author_id', userId);
+        }
+        const fallbackRes = await fallbackQuery.order('event_date', { ascending: true });
+        if (!fallbackRes.error && fallbackRes.data) {
+          rows = fallbackRes.data as any[];
+        } else {
+          logger.adapter('warn', 'Errore recupero eventi cloud', { error: error.message });
+          return [];
+        }
+      }
+      if (!rows) return [];
 
-      return data.map((e: any) => {
+      return rows.map((e: any) => {
         const fn = e.profiles?.first_name || '';
         const ln = e.profiles?.last_name || '';
         const authorName = `${fn} ${ln}`.trim() || 'Autore';
@@ -392,99 +539,116 @@ export const eventsAdapter = {
           createdAt: e.created_at
         };
       });
-    } catch {
-      return localStore.getEvents(classId, userId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero eventi cloud', { error: err?.message });
+      return [];
     }
   },
 
   async addEvent(event: Omit<CalendarEvent, 'id' | 'createdAt'>): Promise<CalendarEvent> {
-    const targetClassId = event.isPersonal ? null : (event.classId || 'cls-dev-test');
-    const processedEvent = { ...event, classId: targetClassId || undefined };
-
-    if (!isSupabaseConfigured || !supabase) {
-      return localStore.addEvent(processedEvent);
+    if (!isSupabaseConfigured || !supabase || (!event.isPersonal && (!isValidUUID(event.classId || '') || event.classId === 'cls-dev-test'))) {
+      return localStore.addEvent(event);
     }
 
-    try {
-      const insertPayload = event.isPersonal
-        ? {
-            class_id: null,
-            author_id: event.authorId,
-            title: event.title,
-            subject_id: null,
-            subject_name: null,
-            type: 'PERSONALE' as const,
-            event_date: event.date,
-            start_time: event.startTime,
-            end_time: event.endTime || null,
-            description: event.description || null,
-            teacher: null,
-            is_personal: true,
-            interrogation_id: null
-          }
-        : {
-            class_id: targetClassId,
-            author_id: event.authorId,
-            title: event.title,
-            subject_id: null,
-            subject_name: event.subject || null,
-            type: (event.type || 'EVENTO') as any,
-            event_date: event.date,
-            start_time: event.startTime,
-            end_time: event.endTime || null,
-            description: event.description || null,
-            teacher: event.teacher || null,
-            is_personal: false,
-            interrogation_id: event.interrogationId || null
-          };
-
-      const { data, error } = await supabase
-        .from('events')
-        .insert(insertPayload)
-        .select()
-        .single();
-
-      if (error || !data) {
-        logger.adapter('warn', 'Errore salvataggio evento cloud, attivazione localStore fallback', { error: error?.message });
-        return localStore.addEvent(processedEvent);
-      }
-
-      if (!event.isPersonal && data.class_id && data.id) {
-        logger.network('info', 'Invio notifica push per nuovo evento di classe', { type: 'EVENT', classId: data.class_id, referenceId: data.id });
-        const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
-          body: {
-            classId: data.class_id,
-            notificationType: 'EVENT',
-            referenceId: data.id
-          }
-        });
-        if (pushError) {
-          logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'EVENT' });
-          console.warn('Impossibile inviare notifica push');
-        } else {
-          logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'EVENT' });
+    const insertPayload = event.isPersonal
+      ? {
+          class_id: null,
+          author_id: event.authorId,
+          title: event.title,
+          subject_id: null,
+          subject_name: null,
+          type: 'PERSONALE' as const,
+          event_date: event.date,
+          start_time: event.startTime,
+          end_time: event.endTime || null,
+          description: event.description || null,
+          teacher: null,
+          is_personal: true,
+          interrogation_id: null
         }
-      }
+      : {
+          class_id: event.classId,
+          author_id: event.authorId,
+          title: event.title,
+          subject_id: null,
+          subject_name: event.subject || null,
+          type: (event.type || 'EVENTO') as any,
+          event_date: event.date,
+          start_time: event.startTime,
+          end_time: event.endTime || null,
+          description: event.description || null,
+          teacher: event.teacher || null,
+          is_personal: false,
+          interrogation_id: event.interrogationId || null
+        };
 
-      return {
-        ...processedEvent,
-        id: data.id,
-        createdAt: data.created_at
-      };
-    } catch (err: any) {
-      logger.adapter('warn', 'Eccezione salvataggio evento, attivazione localStore fallback', { error: err?.message });
-      return localStore.addEvent(processedEvent);
+    const { data, error } = await supabase
+      .from('events')
+      .insert(insertPayload as any)
+      .select()
+      .single();
+
+    if (error || !data) {
+      logger.adapter('error', 'Errore salvataggio evento cloud', { error: error?.message });
+      throw new Error(error?.message || 'Errore durante il salvataggio dell\'evento su cloud.');
     }
+
+    if (!event.isPersonal && data.class_id && data.id) {
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'EVENT',
+          referenceId: data.id
+        }
+      });
+      if (pushError) {
+        console.warn('Impossibile inviare notifica push');
+      }
+    }
+
+    return {
+      ...event,
+      id: data.id,
+      createdAt: data.created_at
+    };
   },
 
   async deleteEvent(eventId: string): Promise<void> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(eventId)) {
       localStore.deleteEvent(eventId);
       return;
     }
 
     const { error } = await supabase.from('events').delete().eq('id', eventId);
     if (error) {
+      logger.adapter('error', 'Errore eliminazione evento cloud', { error: error.message });
+      throw new Error(error.message);
+    }
+  },
+
+  async updateEvent(eventId: string, updates: Partial<CalendarEvent>): Promise<void> {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(eventId)) {
+      localStore.updateEvent(eventId, updates);
+      return;
+    }
+
+    const payload: Record<string, any> = {};
+    if (updates.title !== undefined) payload.title = updates.title;
+    if (updates.subject !== undefined) payload.subject_name = updates.subject;
+    if (updates.type !== undefined) payload.type = updates.type;
+    if (updates.date !== undefined) payload.event_date = updates.date;
+    if (updates.startTime !== undefined) payload.start_time = updates.startTime;
+    if (updates.endTime !== undefined) payload.end_time = updates.endTime;
+    if (updates.description !== undefined) payload.description = updates.description;
+    if (updates.teacher !== undefined) payload.teacher = updates.teacher;
+
+    const { error } = await supabase
+      .from('events')
+      .update(payload as any)
+      .eq('id', eventId);
+
+    if (error) {
+      logger.adapter('error', 'Errore modifica evento cloud', { error: error.message });
       throw new Error(error.message);
     }
   }
@@ -495,7 +659,7 @@ export const eventsAdapter = {
 // ============================================================================
 export const interrogationsAdapter = {
   async getInterrogations(classId: string): Promise<Interrogation[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getInterrogations(classId);
     }
 
@@ -513,7 +677,11 @@ export const interrogationsAdapter = {
         .eq('class_id', classId)
         .order('interrogation_date', { ascending: true });
 
-      if (error || !data) return localStore.getInterrogations(classId);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero interrogazioni cloud', { error: error.message });
+        return [];
+      }
+      if (!data) return [];
 
       return data.map((item: any) => {
         const volunteersList = (item.interrogation_volunteers || []).map((v: any) => {
@@ -545,8 +713,9 @@ export const interrogationsAdapter = {
           volunteerIds: volunteersList.map((v: any) => v.userId)
         };
       });
-    } catch {
-      return localStore.getInterrogations(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero interrogazioni cloud', { error: err?.message });
+      return [];
     }
   },
 
@@ -554,79 +723,67 @@ export const interrogationsAdapter = {
     interrogation: Omit<Interrogation, 'id' | 'volunteers' | 'volunteerIds' | 'status'>,
     creatorUid: string
   ): Promise<Interrogation> {
-    const targetClassId = interrogation.classId || 'cls-dev-test';
-    const processedInterrogation = { ...interrogation, classId: targetClassId };
-
-    if (!isSupabaseConfigured || !supabase) {
-      return localStore.addInterrogation(processedInterrogation);
+    if (!isSupabaseConfigured || !supabase || !interrogation.classId || !isValidUUID(interrogation.classId) || interrogation.classId === 'cls-dev-test') {
+      return localStore.addInterrogation(interrogation);
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('interrogations')
-        .insert({
-          class_id: targetClassId,
-          created_by: creatorUid,
-          title: interrogation.title,
-          subject_name: interrogation.subject,
-          interrogation_date: interrogation.date,
-          start_time: interrogation.startTime,
-          end_time: interrogation.endTime || null,
-          max_volunteers: interrogation.maxVolunteers,
-          deadline: interrogation.deadline || null,
-          status: 'OPEN',
-          teacher: interrogation.teacher || null,
-          notes: interrogation.notes || null
-        })
-        .select()
-        .single();
+    const { data, error } = await supabase
+      .from('interrogations')
+      .insert({
+        class_id: interrogation.classId,
+        created_by: creatorUid,
+        title: interrogation.title,
+        subject_name: interrogation.subject,
+        interrogation_date: interrogation.date,
+        start_time: interrogation.startTime,
+        end_time: interrogation.endTime || null,
+        max_volunteers: interrogation.maxVolunteers,
+        deadline: interrogation.deadline || null,
+        status: 'OPEN',
+        teacher: interrogation.teacher || null,
+        notes: interrogation.notes || null
+      })
+      .select()
+      .single();
 
-      if (error || !data) {
-        logger.adapter('warn', 'Errore creazione interrogazione cloud, attivazione localStore fallback', { error: error?.message });
-        return localStore.addInterrogation(processedInterrogation);
-      }
+    if (error || !data) {
+      logger.adapter('error', 'Errore creazione interrogazione cloud', { error: error?.message });
+      throw new Error(error?.message || 'Errore durante la creazione dell\'interrogazione.');
+    }
 
-      if (data.class_id && data.id) {
-        logger.network('info', 'Invio notifica push per nuova interrogazione', { type: 'INTERROGATION', classId: data.class_id, referenceId: data.id });
-        const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
-          body: {
-            classId: data.class_id,
-            notificationType: 'INTERROGATION',
-            referenceId: data.id
-          }
-        });
-        if (pushError) {
-          logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'INTERROGATION' });
-          console.warn('Impossibile inviare notifica push');
-        } else {
-          logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'INTERROGATION' });
+    if (data.class_id && data.id) {
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'INTERROGATION',
+          referenceId: data.id
         }
+      });
+      if (pushError) {
+        console.warn('Impossibile inviare notifica push');
       }
-
-      return {
-        id: data.id,
-        title: data.title,
-        subject: data.subject_name,
-        date: data.interrogation_date,
-        startTime: data.start_time,
-        endTime: data.end_time || '',
-        maxVolunteers: data.max_volunteers,
-        deadline: data.deadline || undefined,
-        status: data.status,
-        teacher: data.teacher || undefined,
-        notes: data.notes || undefined,
-        classId: data.class_id,
-        volunteers: [],
-        volunteerIds: []
-      };
-    } catch (err: any) {
-      logger.adapter('warn', 'Eccezione creazione interrogazione, attivazione localStore fallback', { error: err?.message });
-      return localStore.addInterrogation(processedInterrogation);
     }
+
+    return {
+      id: data.id,
+      title: data.title,
+      subject: data.subject_name,
+      date: data.interrogation_date,
+      startTime: data.start_time,
+      endTime: data.end_time || '',
+      maxVolunteers: data.max_volunteers,
+      deadline: data.deadline || undefined,
+      status: data.status,
+      teacher: data.teacher || undefined,
+      notes: data.notes || undefined,
+      classId: data.class_id,
+      volunteers: [],
+      volunteerIds: []
+    };
   },
 
   async updateInterrogationStatus(id: string, status: 'OPEN' | 'CLOSED'): Promise<void> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(id)) {
       localStore.updateInterrogationStatus(id, status);
       return;
     }
@@ -636,11 +793,14 @@ export const interrogationsAdapter = {
       .update({ status })
       .eq('id', id);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore aggiornamento stato interrogazione', { error: error.message });
+      throw new Error(error.message);
+    }
   },
 
   async deleteInterrogation(id: string): Promise<void> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(id)) {
       localStore.deleteInterrogation(id);
       return;
     }
@@ -650,7 +810,10 @@ export const interrogationsAdapter = {
       .delete()
       .eq('id', id);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore eliminazione interrogazione', { error: error.message });
+      throw new Error(error.message);
+    }
   },
 
   async toggleVolunteer(
@@ -659,8 +822,7 @@ export const interrogationsAdapter = {
   ): Promise<{ success: boolean; message: string }> {
     logger.adapter('info', `Richiesta cambio volontario per interrogazione ${interrogationId}`, { userId: user.uid, userName: user.name });
 
-    if (!isSupabaseConfigured || !supabase) {
-      logger.adapter('info', 'Supabase non configurato, delega a localStore per volontario');
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(interrogationId)) {
       return localStore.toggleVolunteer(interrogationId, user);
     }
 
@@ -671,17 +833,16 @@ export const interrogationsAdapter = {
       });
 
       if (!error && data) {
-        logger.adapter('info', 'Prenotazione volontario completata via RPC toggle_volunteer_reservation', { result: data });
         return {
           success: data.success ?? true,
           message: data.message || 'Operazione completata'
         };
       }
       if (error) {
-        logger.adapter('warn', 'Risposta RPC toggle_volunteer_reservation non disponibile o errata', { error: error.message });
+        logger.adapter('warn', 'Risposta RPC toggle_volunteer_reservation', { error: error.message });
       }
     } catch (err: any) {
-      logger.adapter('warn', 'Eccezione RPC toggle_volunteer_reservation, passaggio a query diretta tabella', { error: err?.message });
+      logger.adapter('warn', 'Eccezione RPC toggle_volunteer_reservation', { error: err?.message });
     }
 
     // Tier 2: Direct Supabase table operations on interrogation_volunteers
@@ -689,78 +850,108 @@ export const interrogationsAdapter = {
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData?.user?.id || user.uid;
 
-      if (userId) {
-        // Check if user is already registered as a volunteer
-        const { data: existing, error: checkError } = await supabase
+      if (!userId) {
+        throw new Error('Utente non autenticato.');
+      }
+
+      // Check if user is already registered as a volunteer
+      const { data: existing, error: checkError } = await supabase
+        .from('interrogation_volunteers')
+        .select('user_id')
+        .eq('interrogation_id', interrogationId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (checkError) {
+        throw new Error(checkError.message);
+      }
+
+      if (existing) {
+        // Unbook volunteer slot
+        const { error: delError } = await supabase
           .from('interrogation_volunteers')
-          .select('user_id')
+          .delete()
           .eq('interrogation_id', interrogationId)
-          .eq('user_id', userId)
-          .maybeSingle();
+          .eq('user_id', userId);
 
-        if (!checkError && existing) {
-          // Unbook volunteer slot
-          const { error: delError } = await supabase
-            .from('interrogation_volunteers')
-            .delete()
-            .eq('interrogation_id', interrogationId)
-            .eq('user_id', userId);
-
-          if (!delError) {
-            logger.adapter('info', 'Cancellazione volontario eseguita su tabella interrogation_volunteers');
-            localStore.toggleVolunteer(interrogationId, user);
-            return { success: true, message: 'Prenotazione ritirata con successo.' };
-          } else {
-            logger.adapter('error', 'Errore durante la cancellazione volontario su tabella', { error: delError.message });
-          }
-        } else if (!checkError) {
-          // Book volunteer slot: check status and capacity
-          const { data: interrogation, error: intError } = await supabase
-            .from('interrogations')
-            .select('status, max_volunteers')
-            .eq('id', interrogationId)
-            .single();
-
-          if (!intError && interrogation) {
-            if (interrogation.status === 'CLOSED') {
-              logger.adapter('warn', 'Tentativo di iscrizione su interrogazione CHIUSA');
-              return { success: false, message: 'Le iscrizioni per questa interrogazione sono chiuse.' };
-            }
-
-            const { count, error: countError } = await supabase
-              .from('interrogation_volunteers')
-              .select('*', { count: 'exact', head: true })
-              .eq('interrogation_id', interrogationId);
-
-            if (!countError && count !== null && count >= interrogation.max_volunteers) {
-              logger.adapter('warn', 'Posti volontari esauriti', { count, max: interrogation.max_volunteers });
-              return { success: false, message: 'Tutti i posti disponibili per i volontari sono esauriti.' };
-            }
-
-            const { error: insError } = await supabase
-              .from('interrogation_volunteers')
-              .insert({
-                interrogation_id: interrogationId,
-                user_id: userId
-              });
-
-            if (!insError) {
-              logger.adapter('info', 'Iscrizione volontario inserita su tabella interrogation_volunteers');
-              localStore.toggleVolunteer(interrogationId, user);
-              return { success: true, message: 'Prenotazione registrata! Sei nella lista volontari.' };
-            } else {
-              logger.adapter('error', 'Errore inserimento volontario su tabella', { error: insError.message });
-            }
-          }
+        if (delError) {
+          throw new Error(delError.message);
         }
+        return { success: true, message: 'Prenotazione ritirata con successo.' };
+      } else {
+        // Book volunteer slot: check status and capacity
+        const { data: interrogation, error: intError } = await supabase
+          .from('interrogations')
+          .select('status, max_volunteers')
+          .eq('id', interrogationId)
+          .single();
+
+        if (intError || !interrogation) {
+          throw new Error(intError?.message || 'Interrogazione non trovata.');
+        }
+
+        if (interrogation.status === 'CLOSED') {
+          return { success: false, message: 'Le iscrizioni per questa interrogazione sono chiuse.' };
+        }
+
+        const { count, error: countError } = await supabase
+          .from('interrogation_volunteers')
+          .select('*', { count: 'exact', head: true })
+          .eq('interrogation_id', interrogationId);
+
+        if (countError) {
+          throw new Error(countError.message);
+        }
+
+        if (count !== null && count >= interrogation.max_volunteers) {
+          return { success: false, message: 'Tutti i posti disponibili per i volontari sono esauriti.' };
+        }
+
+        const { error: insError } = await supabase
+          .from('interrogation_volunteers')
+          .insert({
+            interrogation_id: interrogationId,
+            user_id: userId
+          });
+
+        if (insError) {
+          throw new Error(insError.message);
+        }
+
+        return { success: true, message: 'Prenotazione registrata! Sei nella lista volontari.' };
       }
     } catch (err: any) {
-      logger.adapter('error', 'Eccezione tabella diretta volontari, passaggio a localStore', { error: err?.message });
+      logger.adapter('error', 'Errore gestione volontario su cloud', { error: err?.message });
+      throw new Error(err?.message || 'Impossibile aggiornare la prenotazione sul cloud.');
+    }
+  },
+
+  async updateInterrogation(id: string, updates: Partial<Interrogation>): Promise<void> {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(id)) {
+      localStore.updateInterrogation(id, updates);
+      return;
     }
 
-    // Tier 3: LocalStore fallback
-    logger.adapter('warn', 'Esecuzione fallback finale localStore per volontari');
-    return localStore.toggleVolunteer(interrogationId, user);
+    const payload: Record<string, any> = {};
+    if (updates.title !== undefined) payload.title = updates.title;
+    if (updates.subject !== undefined) payload.subject_name = updates.subject;
+    if (updates.date !== undefined) payload.interrogation_date = updates.date;
+    if (updates.startTime !== undefined) payload.start_time = updates.startTime;
+    if (updates.endTime !== undefined) payload.end_time = updates.endTime;
+    if (updates.maxVolunteers !== undefined) payload.max_volunteers = updates.maxVolunteers;
+    if (updates.teacher !== undefined) payload.teacher = updates.teacher;
+    if (updates.notes !== undefined) payload.notes = updates.notes;
+    if (updates.status !== undefined) payload.status = updates.status;
+
+    const { error } = await supabase
+      .from('interrogations')
+      .update(payload as any)
+      .eq('id', id);
+
+    if (error) {
+      logger.adapter('error', 'Errore modifica interrogazione cloud', { error: error.message });
+      throw new Error(error.message);
+    }
   }
 };
 
@@ -769,20 +960,36 @@ export const interrogationsAdapter = {
 // ============================================================================
 export const noticesAdapter = {
   async getNotices(classId: string): Promise<Notice[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getNotices(classId);
     }
 
     try {
+      let rows: any[] | null = null;
       const { data, error } = await supabase
         .from('notices')
         .select('*, profiles(first_name, last_name)')
         .eq('class_id', classId)
         .order('notice_date', { ascending: false });
 
-      if (error || !data) return localStore.getNotices(classId);
+      if (!error && data) {
+        rows = data as any[];
+      } else if (error) {
+        const fallbackRes = await supabase
+          .from('notices')
+          .select('*')
+          .eq('class_id', classId)
+          .order('notice_date', { ascending: false });
+        if (!fallbackRes.error && fallbackRes.data) {
+          rows = fallbackRes.data as any[];
+        } else {
+          logger.adapter('warn', 'Errore recupero avvisi cloud', { error: error.message });
+          return [];
+        }
+      }
+      if (!rows) return [];
 
-      return data.map((n: any) => ({
+      return rows.map((n: any) => ({
         id: n.id,
         title: n.title,
         content: n.content,
@@ -793,75 +1000,100 @@ export const noticesAdapter = {
         classId: n.class_id,
         createdAt: n.created_at
       }));
-    } catch {
-      return localStore.getNotices(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero avvisi cloud', { error: err?.message });
+      return [];
     }
   },
 
   async addNotice(notice: Omit<Notice, 'id'>, authorUid: string): Promise<Notice> {
-    const targetClassId = notice.classId || 'cls-dev-test';
-    const processedNotice = { ...notice, classId: targetClassId };
-
-    if (!isSupabaseConfigured || !supabase) {
-      return localStore.addNotice(processedNotice);
+    if (!isSupabaseConfigured || !supabase || !notice.classId || !isValidUUID(notice.classId) || notice.classId === 'cls-dev-test') {
+      return localStore.addNotice(notice);
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('notices')
-        .insert({
-          class_id: targetClassId,
-          author_id: authorUid,
-          title: notice.title,
-          content: notice.content,
-          notice_date: notice.date || new Date().toISOString().split('T')[0],
-          priority: notice.priority || 'NORMAL',
-          linked_event_id: notice.linkedEventId || null
-        })
-        .select()
-        .single();
+    const { data, error } = await supabase
+      .from('notices')
+      .insert({
+        class_id: notice.classId,
+        author_id: authorUid,
+        title: notice.title,
+        content: notice.content,
+        notice_date: notice.date || new Date().toISOString().split('T')[0],
+        priority: notice.priority || 'NORMAL',
+        linked_event_id: notice.linkedEventId || null
+      })
+      .select()
+      .single();
 
-      if (error || !data) {
-        logger.adapter('warn', 'Errore pubblicazione avviso cloud, attivazione localStore fallback', { error: error?.message });
-        return localStore.addNotice(processedNotice);
-      }
+    if (error || !data) {
+      logger.adapter('error', 'Errore pubblicazione avviso cloud', { error: error?.message });
+      throw new Error(error?.message || 'Errore durante la pubblicazione dell\'avviso su cloud.');
+    }
 
-      if (data.class_id && data.id) {
-        logger.network('info', 'Invio notifica push per nuovo avviso', { type: 'NOTICE', classId: data.class_id, referenceId: data.id });
-        const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
-          body: {
-            classId: data.class_id,
-            notificationType: 'NOTICE',
-            referenceId: data.id
-          }
-        });
-        if (pushError) {
-          logger.network('warn', 'Risposta Edge Function send-push-notification con warning/error', { type: 'NOTICE' });
-          console.warn('Impossibile inviare notifica push');
-        } else {
-          logger.network('info', 'Notifica push inviata con successo via Edge Function', { type: 'NOTICE' });
+    if (data.class_id && data.id) {
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'NOTICE',
+          referenceId: data.id
         }
+      });
+      if (pushError) {
+        console.warn('Impossibile inviare notifica push');
       }
-
-      return {
-        ...processedNotice,
-        id: data.id,
-        createdAt: data.created_at
-      };
-    } catch (err: any) {
-      logger.adapter('warn', 'Eccezione pubblicazione avviso, attivazione localStore fallback', { error: err?.message });
-      return localStore.addNotice(processedNotice);
     }
+
+    return {
+      ...notice,
+      id: data.id,
+      createdAt: data.created_at
+    };
   },
 
   async deleteNotice(id: string): Promise<void> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(id)) {
       localStore.deleteNotice(id);
       return;
     }
 
     const { error } = await supabase.from('notices').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore eliminazione avviso', { error: error.message });
+      throw new Error(error.message);
+    }
+  },
+
+  async updateNotice(id: string, updates: { title?: string; content?: string; priority?: 'NORMAL' | 'HIGH'; date?: string }): Promise<void> {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(id)) {
+      const res = localStore.updateNotice(id, updates);
+      if (!res) {
+        throw new Error('Avviso non trovato nel database locale.');
+      }
+      return;
+    }
+
+    const payload: Record<string, any> = {};
+    if (updates.title !== undefined) payload.title = updates.title;
+    if (updates.content !== undefined) payload.content = updates.content;
+    if (updates.priority !== undefined) payload.priority = updates.priority;
+    if (updates.date !== undefined) payload.notice_date = updates.date;
+
+    if (Object.keys(payload).length === 0) return;
+
+    const { data, error } = await supabase
+      .from('notices')
+      .update(payload as any)
+      .eq('id', id)
+      .select('id');
+
+    if (error) {
+      logger.adapter('error', 'Errore modifica avviso cloud', { error: error.message });
+      throw new Error(error.message);
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error('Avviso non trovato o permessi non sufficienti per la modifica.');
+    }
   }
 };
 
@@ -871,22 +1103,38 @@ export const noticesAdapter = {
 // ============================================================================
 export const materialsAdapter = {
   async getMaterials(classId: string): Promise<MaterialItem[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getMaterials(classId);
     }
 
     try {
+      let rows: any[] | null = null;
       const { data, error } = await supabase
         .from('materials')
         .select('*, profiles(first_name, last_name)')
         .eq('class_id', classId)
         .order('material_date', { ascending: false });
 
-      if (error || !data) return localStore.getMaterials(classId);
+      if (!error && data) {
+        rows = data as any[];
+      } else if (error) {
+        const fallbackRes = await supabase
+          .from('materials')
+          .select('*')
+          .eq('class_id', classId)
+          .order('material_date', { ascending: false });
+        if (!fallbackRes.error && fallbackRes.data) {
+          rows = fallbackRes.data as any[];
+        } else {
+          logger.adapter('warn', 'Errore recupero materiali cloud', { error: error.message });
+          return [];
+        }
+      }
+      if (!rows) return [];
 
       // Generate signed URLs for private bucket files
       const items: MaterialItem[] = await Promise.all(
-        data.map(async (m: any) => {
+        rows.map(async (m: any) => {
           let downloadUrl = m.url;
           if (m.storage_path) {
             const { data: signed } = await supabase!.storage
@@ -919,8 +1167,9 @@ export const materialsAdapter = {
       );
 
       return items;
-    } catch {
-      return localStore.getMaterials(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero materiali cloud', { error: err?.message });
+      return [];
     }
   },
 
@@ -929,7 +1178,7 @@ export const materialsAdapter = {
     fileObject?: File | Blob | null,
     uploaderUid?: string
   ): Promise<MaterialItem> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !material.classId || !isValidUUID(material.classId) || material.classId === 'cls-dev-test') {
       return localStore.addMaterial(material);
     }
 
@@ -938,7 +1187,7 @@ export const materialsAdapter = {
     let fileSize = 0;
 
     // 1. Upload to Supabase Storage if file is provided
-    if (fileObject && material.classId) {
+    if (fileObject) {
       const materialId = crypto.randomUUID();
       const rawName = material.fileName || 'file.pdf';
       const cleanFileName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -954,16 +1203,23 @@ export const materialsAdapter = {
         });
 
       if (uploadError) {
+        logger.adapter('error', 'Errore caricamento Storage', { error: uploadError.message });
         throw new Error(`Errore caricamento Storage: ${uploadError.message}`);
       }
     }
 
     // 2. Insert into PostgreSQL materials table
+    const { data: authUserRes } = await supabase.auth.getUser();
+    const effectiveUploaderUid = uploaderUid || authUserRes?.user?.id;
+    if (!effectiveUploaderUid) {
+      throw new Error('Utente non autenticato. Effettua l\'accesso per caricare file.');
+    }
+
     const { data, error } = await supabase
       .from('materials')
       .insert({
-        class_id: material.classId!,
-        uploaded_by: uploaderUid || 'anonymous',
+        class_id: material.classId,
+        uploaded_by: effectiveUploaderUid,
         subject_name: material.subject,
         title: material.title,
         description: material.description || null,
@@ -978,6 +1234,7 @@ export const materialsAdapter = {
       .single();
 
     if (error || !data) {
+      logger.adapter('error', 'Errore inserimento materiale cloud', { error: error?.message });
       throw new Error(error?.message || 'Impossibile registrare il materiale nel database.');
     }
 
@@ -989,8 +1246,8 @@ export const materialsAdapter = {
     };
   },
 
-  async deleteMaterial(id: string, classId?: string): Promise<void> {
-    if (!isSupabaseConfigured || !supabase) {
+  async deleteMaterial(id: string, _classId?: string): Promise<void> {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(id)) {
       localStore.deleteMaterial(id);
       return;
     }
@@ -1008,7 +1265,10 @@ export const materialsAdapter = {
 
     // 2. Delete row
     const { error } = await supabase.from('materials').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore eliminazione materiale cloud', { error: error.message });
+      throw new Error(error.message);
+    }
   }
 };
 
@@ -1017,7 +1277,7 @@ export const materialsAdapter = {
 // ============================================================================
 export const timetableAdapter = {
   async getTimetable(classId?: string): Promise<TimetableSlot[]> {
-    if (!isSupabaseConfigured || !supabase || !classId) {
+    if (!isSupabaseConfigured || !supabase || !classId || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getTimetable();
     }
 
@@ -1029,9 +1289,11 @@ export const timetableAdapter = {
         .order('day_of_week')
         .order('hour');
 
-      if (error || !data || data.length === 0) {
-        return localStore.getTimetable();
+      if (error) {
+        logger.adapter('warn', 'Errore recupero orario cloud', { error: error.message });
+        return [];
       }
+      if (!data) return [];
 
       return data.map((s: any) => ({
         id: s.id,
@@ -1042,69 +1304,69 @@ export const timetableAdapter = {
         teacher: s.teacher || undefined,
         room: s.room || undefined
       }));
-    } catch {
-      return localStore.getTimetable();
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero orario cloud', { error: err?.message });
+      return [];
     }
   },
 
   async updateTimetableSlot(slot: TimetableSlot, classId?: string): Promise<void> {
-    const targetClassId = classId || 'cls-dev-test';
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !classId || !isValidUUID(classId) || classId === 'cls-dev-test') {
       localStore.updateTimetableSlot(slot);
       return;
     }
 
-    try {
-      // Check if slot exists in DB
-      const { data: existing } = await supabase
+    // Check if slot exists in DB
+    const { data: existing, error: checkError } = await supabase
+      .from('timetable_slots')
+      .select('id')
+      .eq('class_id', classId)
+      .eq('day_of_week', slot.dayOfWeek)
+      .eq('hour', slot.hour)
+      .maybeSingle();
+
+    if (checkError) {
+      logger.adapter('error', 'Errore verifica slot orario cloud', { error: checkError.message });
+      throw new Error(checkError.message);
+    }
+
+    if (existing) {
+      const { error } = await supabase
         .from('timetable_slots')
-        .select('id')
-        .eq('class_id', targetClassId)
-        .eq('day_of_week', slot.dayOfWeek)
-        .eq('hour', slot.hour)
-        .maybeSingle();
+        .update({
+          time_range: slot.timeRange,
+          subject_name: slot.subject,
+          teacher: slot.teacher || null,
+          room: slot.room || null
+        })
+        .eq('id', existing.id);
 
-      if (existing) {
-        const { error } = await supabase
-          .from('timetable_slots')
-          .update({
-            time_range: slot.timeRange,
-            subject_name: slot.subject,
-            teacher: slot.teacher || null,
-            room: slot.room || null
-          })
-          .eq('id', existing.id);
-
-        if (error) {
-          logger.adapter('warn', 'Errore aggiornamento orario cloud, attivazione localStore fallback', { error: error.message });
-          localStore.updateTimetableSlot(slot);
-        }
-      } else {
-        const { error } = await supabase
-          .from('timetable_slots')
-          .insert({
-            class_id: targetClassId,
-            day_of_week: slot.dayOfWeek,
-            hour: slot.hour,
-            time_range: slot.timeRange,
-            subject_name: slot.subject,
-            teacher: slot.teacher || null,
-            room: slot.room || null
-          });
-
-        if (error) {
-          logger.adapter('warn', 'Errore inserimento orario cloud, attivazione localStore fallback', { error: error.message });
-          localStore.updateTimetableSlot(slot);
-        }
+      if (error) {
+        logger.adapter('error', 'Errore aggiornamento orario cloud', { error: error.message });
+        throw new Error(error.message);
       }
-    } catch (err: any) {
-      logger.adapter('warn', 'Eccezione aggiornamento orario, attivazione localStore fallback', { error: err?.message });
-      localStore.updateTimetableSlot(slot);
+    } else {
+      const { error } = await supabase
+        .from('timetable_slots')
+        .insert({
+          class_id: classId,
+          day_of_week: slot.dayOfWeek,
+          hour: slot.hour,
+          time_range: slot.timeRange,
+          subject_name: slot.subject,
+          teacher: slot.teacher || null,
+          room: slot.room || null
+        });
+
+      if (error) {
+        logger.adapter('error', 'Errore inserimento orario cloud', { error: error.message });
+        throw new Error(error.message);
+      }
     }
   },
 
   async deleteTimetableSlot(id: string): Promise<void> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(id)) {
       localStore.deleteTimetableSlot(id);
       return;
     }
@@ -1113,8 +1375,8 @@ export const timetableAdapter = {
   },
 
   async getSubjects(classId?: string): Promise<SubjectItem[]> {
-    if (!isSupabaseConfigured || !supabase || !classId) {
-      return localStore.getSubjects(classId);
+    if (!isSupabaseConfigured || !supabase || !classId || !isValidUUID(classId) || classId === 'cls-dev-test') {
+      return localStore.getSubjects(classId || 'cls-dev-test');
     }
 
     try {
@@ -1124,9 +1386,11 @@ export const timetableAdapter = {
         .eq('class_id', classId)
         .order('name');
 
-      if (error || !data || data.length === 0) {
-        return localStore.getSubjects(classId);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero materie cloud', { error: error.message });
+        return [];
       }
+      if (!data) return [];
 
       return data.map((s: any) => ({
         id: s.id,
@@ -1138,8 +1402,9 @@ export const timetableAdapter = {
         description: s.description || undefined,
         classId: s.class_id
       }));
-    } catch {
-      return localStore.getSubjects(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero materie cloud', { error: err?.message });
+      return [];
     }
   },
 
@@ -1216,7 +1481,7 @@ export const timetableAdapter = {
 // ============================================================================
 export const surveysAdapter = {
   async getSurveys(classId: string, _currentUserId?: string): Promise<Survey[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getSurveys(classId);
     }
 
@@ -1240,7 +1505,11 @@ export const surveysAdapter = {
         .eq('class_id', classId)
         .order('created_at', { ascending: false });
 
-      if (error || !data) return localStore.getSurveys(classId);
+      if (error) {
+        logger.adapter('warn', 'Errore recupero sondaggi cloud', { error: error.message });
+        return [];
+      }
+      if (!data) return [];
 
       return data.map((s: any) => {
         const votes = s.survey_votes || [];
@@ -1273,8 +1542,9 @@ export const surveysAdapter = {
           classId: s.class_id
         };
       });
-    } catch {
-      return localStore.getSurveys(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero sondaggi cloud', { error: err?.message });
+      return [];
     }
   },
 
@@ -1282,70 +1552,66 @@ export const surveysAdapter = {
     survey: Omit<Survey, 'id' | 'createdAt' | 'totalVotes'>, 
     authorUid: string
   ): Promise<Survey> {
-    const targetClassId = survey.classId || 'cls-dev-test';
-    const processedSurvey = { ...survey, classId: targetClassId };
-
     if (!isSupabaseConfigured || !supabase) {
-      return localStore.addSurvey(processedSurvey);
+      return localStore.addSurvey(survey);
     }
 
-    try {
-      // 1. Create survey record
-      const { data: surveyRow, error: surveyError } = await supabase
-        .from('surveys')
-        .insert({
-          class_id: targetClassId,
-          author_id: authorUid,
-          title: survey.title,
-          question: survey.question,
-          status: survey.status || 'OPEN',
-          deadline: survey.deadline || null
-        })
-        .select()
-        .single();
-
-      if (surveyError || !surveyRow) {
-        logger.adapter('warn', 'Errore creazione sondaggio cloud, attivazione localStore fallback', { error: surveyError?.message });
-        return localStore.addSurvey(processedSurvey);
-      }
-
-      // 2. Create survey options
-      const optionsToInsert = survey.options.map((opt, idx) => ({
-        survey_id: surveyRow.id,
-        text: opt.text,
-        sort_order: idx
-      }));
-
-      const { data: optionsRows, error: optError } = await supabase
-        .from('survey_options')
-        .insert(optionsToInsert)
-        .select();
-
-      if (optError) {
-        logger.adapter('warn', 'Errore inserimento opzioni sondaggio, attivazione localStore fallback', { error: optError.message });
-        return localStore.addSurvey(processedSurvey);
-      }
-
-      return {
-        id: surveyRow.id,
-        title: surveyRow.title,
-        question: surveyRow.question,
-        options: (optionsRows || []).map((o: any) => ({
-          id: o.id,
-          text: o.text,
-          votesCount: 0,
-          votedUserIds: []
-        })),
-        status: surveyRow.status,
-        deadline: surveyRow.deadline || undefined,
-        createdAt: surveyRow.created_at,
-        totalVotes: 0,
-        classId: surveyRow.class_id
-      };
-    } catch (err: any) {
-      logger.adapter('warn', 'Eccezione creazione sondaggio, attivazione localStore fallback', { error: err?.message });
-      return localStore.addSurvey(processedSurvey);
+    if (!survey.classId || !isValidUUID(survey.classId)) {
+      throw new Error('Nessuna classe attiva selezionata.');
     }
+
+    // 1. Create survey record
+    const { data: surveyRow, error: surveyError } = await supabase
+      .from('surveys')
+      .insert({
+        class_id: survey.classId,
+        author_id: authorUid,
+        title: survey.title,
+        question: survey.question,
+        status: survey.status || 'OPEN',
+        deadline: survey.deadline || null
+      })
+      .select()
+      .single();
+
+    if (surveyError || !surveyRow) {
+      logger.adapter('error', 'Errore creazione sondaggio cloud', { error: surveyError?.message });
+      throw new Error(surveyError?.message || 'Errore durante la creazione del sondaggio.');
+    }
+
+    // 2. Create survey options
+    const optionsToInsert = survey.options.map((opt, idx) => ({
+      survey_id: surveyRow.id,
+      text: opt.text,
+      sort_order: idx
+    }));
+
+    const { data: optionsRows, error: optError } = await supabase
+      .from('survey_options')
+      .insert(optionsToInsert)
+      .select();
+
+    if (optError) {
+      logger.adapter('error', 'Errore inserimento opzioni sondaggio', { error: optError.message });
+      throw new Error(optError.message);
+    }
+
+    return {
+      id: surveyRow.id,
+      title: surveyRow.title,
+      question: surveyRow.question,
+      options: (optionsRows || []).map((o: any) => ({
+        id: o.id,
+        text: o.text,
+        votesCount: 0,
+        votedUserIds: []
+      })),
+      status: surveyRow.status,
+      deadline: surveyRow.deadline || undefined,
+      createdAt: surveyRow.created_at,
+      totalVotes: 0,
+      classId: surveyRow.class_id
+    };
   },
 
   async voteSurvey(surveyId: string, optionId: string, userId: string): Promise<void> {
@@ -1371,6 +1637,7 @@ export const surveysAdapter = {
       });
 
     if (error) {
+      logger.adapter('error', 'Errore salvataggio voto sondaggio', { error: error.message });
       throw new Error(error.message);
     }
   },
@@ -1387,7 +1654,10 @@ export const surveysAdapter = {
       .update({ status: nextStatus })
       .eq('id', surveyId);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore cambio stato sondaggio', { error: error.message });
+      throw new Error(error.message);
+    }
   },
 
   async deleteSurvey(id: string): Promise<void> {
@@ -1397,7 +1667,10 @@ export const surveysAdapter = {
     }
 
     const { error } = await supabase.from('surveys').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore eliminazione sondaggio', { error: error.message });
+      throw new Error(error.message);
+    }
   }
 };
 
@@ -1406,20 +1679,36 @@ export const surveysAdapter = {
 // ============================================================================
 export const representationAdapter = {
   async getRepresentationItems(classId: string): Promise<RepresentationItem[]> {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(classId) || classId === 'cls-dev-test') {
       return localStore.getRepresentationItems(classId);
     }
 
     try {
+      let rows: any[] | null = null;
       const { data, error } = await supabase
         .from('representation_items')
         .select('*, profiles(first_name, last_name)')
         .eq('class_id', classId)
         .order('created_at', { ascending: false });
 
-      if (error || !data) return localStore.getRepresentationItems(classId);
+      if (!error && data) {
+        rows = data as any[];
+      } else if (error) {
+        const fallbackRes = await supabase
+          .from('representation_items')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false });
+        if (!fallbackRes.error && fallbackRes.data) {
+          rows = fallbackRes.data as any[];
+        } else {
+          logger.adapter('warn', 'Errore recupero richieste rappresentanza cloud', { error: error.message });
+          return [];
+        }
+      }
+      if (!rows) return [];
 
-      return data.map((item: any) => {
+      return rows.map((item: any) => {
         const rFn = item.profiles?.first_name || '';
         const rLn = item.profiles?.last_name || '';
         const authorName = `${rFn} ${rLn}`.trim() || undefined;
@@ -1435,8 +1724,9 @@ export const representationAdapter = {
           classId: item.class_id
         };
       });
-    } catch {
-      return localStore.getRepresentationItems(classId);
+    } catch (err: any) {
+      logger.adapter('error', 'Eccezione recupero richieste rappresentanza cloud', { error: err?.message });
+      return [];
     }
   },
 
@@ -1444,41 +1734,37 @@ export const representationAdapter = {
     item: Omit<RepresentationItem, 'id'>, 
     authorUid: string
   ): Promise<RepresentationItem> {
-    const targetClassId = item.classId || 'cls-dev-test';
-    const processedItem = { ...item, classId: targetClassId };
-
     if (!isSupabaseConfigured || !supabase) {
-      return localStore.addRepresentationItem(processedItem);
+      return localStore.addRepresentationItem(item);
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('representation_items')
-        .insert({
-          class_id: targetClassId,
-          author_id: authorUid,
-          category: (item.category || 'PROPOSTA') as any,
-          title: item.title,
-          description: item.description,
-          status: (item.status || 'IN_ATTESA') as any,
-          item_date: item.date || new Date().toISOString().split('T')[0]
-        })
-        .select()
-        .single();
-
-      if (error || !data) {
-        logger.adapter('warn', 'Errore creazione richiesta rappresentanza, attivazione localStore fallback', { error: error?.message });
-        return localStore.addRepresentationItem(processedItem);
-      }
-
-      return {
-        ...processedItem,
-        id: data.id
-      };
-    } catch (err: any) {
-      logger.adapter('warn', 'Eccezione richiesta rappresentanza, attivazione localStore fallback', { error: err?.message });
-      return localStore.addRepresentationItem(processedItem);
+    if (!item.classId || !isValidUUID(item.classId)) {
+      throw new Error('Nessuna classe attiva selezionata.');
     }
+
+    const { data, error } = await supabase
+      .from('representation_items')
+      .insert({
+        class_id: item.classId,
+        author_id: authorUid,
+        category: (item.category || 'PROPOSTA') as any,
+        title: item.title,
+        description: item.description,
+        status: (item.status || 'IN_ATTESA') as any,
+        item_date: item.date || new Date().toISOString().split('T')[0]
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      logger.adapter('error', 'Errore creazione richiesta rappresentanza cloud', { error: error?.message });
+      throw new Error(error?.message || 'Errore durante la creazione della proposta.');
+    }
+
+    return {
+      ...item,
+      id: data.id
+    };
   },
 
   async updateRepresentationStatus(id: string, status: RepresentationItem['status']): Promise<void> {
@@ -1492,7 +1778,10 @@ export const representationAdapter = {
       .update({ status: status as any })
       .eq('id', id);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore aggiornamento stato rappresentanza', { error: error.message });
+      throw new Error(error.message);
+    }
   },
 
   async deleteRepresentationItem(id: string): Promise<void> {
@@ -1506,6 +1795,9 @@ export const representationAdapter = {
       .delete()
       .eq('id', id);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.adapter('error', 'Errore eliminazione richiesta rappresentanza', { error: error.message });
+      throw new Error(error.message);
+    }
   }
 };

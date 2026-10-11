@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { interrogationsAdapter, timetableAdapter } from '../services/adapters';
-import { X, Clock } from 'lucide-react';
+import { X, Clock, AlertCircle } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { MAX_VOLUNTEERS_OPTIONS, formatSubjectToOption, SUBJECT_OPTIONS } from '../utils/dropdownPresets';
 import { SubjectItem } from '../types';
@@ -31,9 +31,12 @@ export const CreateInterrogationModal: React.FC<Props> = ({
   const [maxVolunteers, setMaxVolunteers] = useState('3');
   const [teacher, setTeacher] = useState('');
   const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
+      setError(null);
       timetableAdapter.getSubjects(profile?.classId || '').then((classSubs) => {
         setSubjects(classSubs);
         if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
@@ -58,14 +61,19 @@ export const CreateInterrogationModal: React.FC<Props> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !date) return;
+    setError(null);
+    if (!title.trim() || !date) {
+      setError('Compila il titolo e la data.');
+      return;
+    }
 
     const targetClassId = activeClassId || profile.classId || profile.activeClassId || currentClass?.id || 'cls-dev-test';
 
     try {
+      setSubmitting(true);
       await interrogationsAdapter.createInterrogation(
         {
-          title,
+          title: title.trim(),
           subject,
           date,
           startTime,
@@ -84,7 +92,9 @@ export const CreateInterrogationModal: React.FC<Props> = ({
       onCreated?.();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Errore nella creazione dell\'interrogazione.');
+      setError(err.message || 'Errore nella creazione dell\'interrogazione.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -113,6 +123,13 @@ export const CreateInterrogationModal: React.FC<Props> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {error && (
+          <div className="mt-4 flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           {/* Titolo / Argomento */}

@@ -25,7 +25,7 @@ export const RepresentationPage: React.FC = () => {
   const loadData = async () => {
     if (!profile) return;
     try {
-      const list = await representationAdapter.getRepresentationItems(profile.classId || '');
+      const list = await representationAdapter.getRepresentationItems(profile.classId || profile.activeClassId || 'cls-dev-test');
       setItems(list);
     } catch {
       // Fallback

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { UserProfile, UserRole, Classroom, ClassMember, UserMembership } from '../types';
 import { localStore, PRESET_USERS } from '../services/dataStore';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
-import { authAdapter, classAdapter } from '../services/adapters';
+import { authAdapter, classAdapter, isValidUUID } from '../services/adapters';
 import { logger } from '../utils/logger';
 
 interface AuthContextType {
@@ -21,7 +21,7 @@ interface AuthContextType {
   setDeveloperSimulationRole: (role: UserRole) => void;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   loginAsDeveloper: (preset?: 'admin' | 'controller' | 'student' | 'developer') => Promise<void>;
-  registerWithEmail: (email: string, pass: string, firstName: string, lastName: string, avatarId: string) => Promise<void>;
+  registerWithEmail: (email: string, pass: string, firstName: string, lastName: string, avatarId: string) => Promise<{ needsEmailConfirmation?: boolean }>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   joinClass: (code: string) => Promise<{ success: boolean; className: string }>;
@@ -71,11 +71,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user = await authAdapter.getProfile(uid);
         }
 
-        // If still not found in cloud, fall back to localStore
-        if (!user) {
-          user = localStore.getUser(uid);
-        }
-
         if (!user) {
           setCurrentUser(null);
           setProfile(null);
@@ -87,10 +82,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        const memberships = await classAdapter.getUserMemberships(user.uid);
+        let memberships = await classAdapter.getUserMemberships(user.uid);
+        if (memberships.length === 0) {
+          const targetClass = localStore.getClass('cls-dev-test');
+          if (targetClass) {
+            const defaultMem: UserMembership = {
+              classId: 'cls-dev-test',
+              className: targetClass.name,
+              classCode: targetClass.code || 'DEVTEST',
+              role: user.role || 'STUDENT',
+              joinedAt: user.createdAt || new Date().toISOString()
+            };
+            localStore.addUserMembership(user.uid, defaultMem);
+            memberships = [defaultMem];
+          }
+        }
         setUserMemberships(memberships);
 
-        const effectiveClassId = user.activeClassId || user.classId || memberships[0]?.classId;
+        const effectiveClassId = user.activeClassId || user.classId || memberships[0]?.classId || 'cls-dev-test';
         let activeClassObj: Classroom | null = null;
         let membersList: ClassMember[] = [];
 
@@ -208,14 +217,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured && supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
+          localStorage.setItem(SESSION_KEY, session.user.id);
           reloadUserData(session.user.id);
         } else {
-          const savedUid = localStorage.getItem(SESSION_KEY);
-          if (savedUid) {
-            reloadUserData(savedUid);
-          } else {
-            setLoading(false);
-          }
+          localStorage.removeItem(SESSION_KEY);
+          setCurrentUser(null);
+          setProfile(null);
+          setCurrentClass(null);
+          setAllMembers([]);
+          setUserMemberships([]);
+          setLoading(false);
         }
       });
 
@@ -223,6 +234,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           localStorage.setItem(SESSION_KEY, session.user.id);
           reloadUserData(session.user.id);
+        } else {
+          localStorage.removeItem(SESSION_KEY);
+          setCurrentUser(null);
+          setProfile(null);
+          setCurrentClass(null);
+          setAllMembers([]);
+          setUserMemberships([]);
+          setLoading(false);
         }
       });
 
@@ -305,6 +324,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cleanEmail === 'marco.rossi@liceo.edu.it' ||
       cleanEmail === 'matteo.ferrari@liceo.edu.it';
 
+    if (isDevPreset) {
+      if (cleanEmail === 'sofia.bianchi@liceo.edu.it' || cleanEmail === 'matteo.ferrari@liceo.edu.it') {
+        await loginAsDeveloper('controller');
+        return;
+      }
+      if (cleanEmail === 'marco.rossi@liceo.edu.it') {
+        await loginAsDeveloper('student');
+        return;
+      }
+      await loginAsDeveloper('developer');
+      return;
+    }
+
     // Supabase Auth Integration Point
     if (isSupabaseConfigured && supabase) {
       try {
@@ -318,18 +350,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isDevPreset) {
             console.warn('Account sviluppatore/test non presente su Supabase remoto, attivazione sessione locale di sviluppo.');
           } else {
+            const lowerMsg = error.message.toLowerCase();
+            if (lowerMsg.includes('email not confirmed') || lowerMsg.includes('email_not_confirmed')) {
+              throw new Error('Email non confermata. Controlla la tua casella di posta per verificare l\'account prima di accedere.');
+            }
             throw new Error(error.message);
           }
-        } else if (data.user) {
+        } else if (data.session && data.user) {
           localStorage.setItem(SESSION_KEY, data.user.id);
           await reloadUserData(data.user.id);
           return;
+        } else if (data.user && !data.session) {
+          throw new Error('Email non confermata. Controlla la tua casella di posta per verificare l\'account prima di accedere.');
         }
       } catch (err: any) {
         if (!isDevPreset) {
           throw err;
         }
       }
+    }
+
+    if (isSupabaseConfigured && supabase && !isDevPreset) {
+      throw new Error('Impossibile autenticarsi con il server Supabase. Riprova.');
     }
 
     // Developer / Tester Account Fallbacks
@@ -375,9 +417,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: cleanEmail,
       role: 'STUDENT',
       avatarId: 'avatar-blue',
-      classId: null,
-      activeClassId: null,
-      className: null,
+      classId: 'cls-dev-test',
+      activeClassId: 'cls-dev-test',
+      className: 'ClassHub — Developer Test',
       createdAt: new Date().toISOString()
     };
 
@@ -414,10 +456,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error(error.message);
       }
 
+      // If email confirmation is required by Supabase Auth, session is null
+      if (!data.session) {
+        localStorage.removeItem(SESSION_KEY);
+        return { needsEmailConfirmation: true };
+      }
+
       if (data.user) {
         localStorage.setItem(SESSION_KEY, data.user.id);
         await reloadUserData(data.user.id);
-        return;
+        return { needsEmailConfirmation: false };
       }
     }
 
@@ -439,6 +487,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStore.saveUser(newProfile);
     localStorage.setItem(SESSION_KEY, newUid);
     await reloadUserData(newUid);
+    return { needsEmailConfirmation: false };
   };
 
   // Reset Password
@@ -473,6 +522,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const joinClass = async (code: string) => {
     if (!profile) throw new Error('Utente non autenticato.');
     const cleanCode = code.trim().toUpperCase();
+
+    // Check for test class DEVTEST first
+    if (cleanCode === 'DEVTEST' || cleanCode === 'DEV-TEST') {
+      const targetClass = localStore.getClass('cls-dev-test') || localStore.getClassByCode('DEVTEST');
+      const membership: UserMembership = {
+        classId: 'cls-dev-test',
+        className: targetClass?.name || 'ClassHub — Developer Test',
+        classCode: 'DEVTEST',
+        role: profile.role || 'STUDENT',
+        joinedAt: new Date().toISOString()
+      };
+
+      localStore.addUserMembership(profile.uid, membership);
+
+      const updatedProfile: UserProfile = {
+        ...profile,
+        classId: 'cls-dev-test',
+        activeClassId: 'cls-dev-test',
+        className: targetClass?.name || 'ClassHub — Developer Test',
+        role: membership.role
+      };
+
+      localStore.saveUser(updatedProfile);
+      await reloadUserData(profile.uid);
+
+      return { success: true, className: membership.className };
+    }
 
     // REAL SUPABASE INTEGRATION VIA RPC
     if (isSupabaseConfigured && supabase) {

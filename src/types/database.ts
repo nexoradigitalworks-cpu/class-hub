@@ -575,6 +575,37 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      create_class: {
+        Args: {
+          p_name: string;
+          p_school_name?: string;
+          p_academic_year?: string;
+          p_allow_self_join?: boolean;
+        };
+        Returns: {
+          id: string;
+          code: string;
+          name: string;
+        };
+      };
+      join_class_by_code: {
+        Args: {
+          p_code: string;
+        };
+        Returns: {
+          success: boolean;
+          message: string;
+          class_id: string;
+          name: string;
+          role: string;
+        };
+      };
+      set_active_class: {
+        Args: {
+          p_class_id: string;
+        };
+        Returns: void;
+      };
       toggle_volunteer_reservation: {
         Args: {
           p_interrogation_id: string;
@@ -584,16 +615,16 @@ export interface Database {
       is_class_member: {
         Args: {
           p_class_id: string;
-          p_user_id: string;
+          p_user_id?: string;
         };
         Returns: boolean;
       };
       get_class_role: {
         Args: {
           p_class_id: string;
-          p_user_id: string;
+          p_user_id?: string;
         };
-        Returns: string;
+        Returns: ClassRole;
       };
     };
     Enums: {

@@ -9,7 +9,7 @@ import {
   Clock, Plus, Filter, Info, AlertTriangle,
   Lock, Trash2, CheckCircle2, UserCheck, Sparkles,
   CalendarDays, Columns, LayoutGrid, List, FileText, Check,
-  BookOpen, Users
+  BookOpen, Users, Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
@@ -48,6 +48,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
   
   // Modals & UI state
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [eventToEdit, setEventToEdit] = useState<CalendarEvent | null>(null);
   const [isInterrogationModalOpen, setIsInterrogationModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<'ALL' | 'EVENTI' | 'VERIFICHE' | 'INTERROGAZIONI' | 'PERSONALI'>('ALL');
@@ -61,7 +62,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
   const refreshData = async () => {
     if (!profile) return;
-    const cid = profile.classId || '';
+    const cid = profile.classId || profile.activeClassId || 'cls-dev-test';
     try {
       const [evs, ints, nots, subs] = await Promise.all([
         eventsAdapter.getEvents(cid, profile.uid),
@@ -216,6 +217,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
   const openNewEvent = (dayDate?: Date) => {
     setModalDate(format(dayDate || selectedDate, 'yyyy-MM-dd'));
+    setEventToEdit(null);
     setIsEventModalOpen(true);
   };
 
@@ -670,16 +672,29 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
                               <div className="flex items-center gap-0.5">
                                 {(ev.authorId === profile?.uid || isController || isAdmin) && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId);
-                                    }}
-                                    className="p-0.5 text-slate-400 hover:text-red-500 rounded transition cursor-pointer"
-                                    title="Elimina"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEventToEdit(ev);
+                                        setIsEventModalOpen(true);
+                                      }}
+                                      className="p-0.5 text-slate-400 hover:text-blue-500 rounded transition cursor-pointer"
+                                      title="Modifica"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId);
+                                      }}
+                                      className="p-0.5 text-slate-400 hover:text-red-500 rounded transition cursor-pointer"
+                                      title="Elimina"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -865,12 +880,25 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                               </div>
 
                               {(ev.authorId === profile?.uid || isController || isAdmin) && (
-                                <button
-                                  onClick={() => handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId)}
-                                  className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setEventToEdit(ev);
+                                      setIsEventModalOpen(true);
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-blue-500 rounded-lg cursor-pointer"
+                                    title="Modifica"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer"
+                                    title="Elimina"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               )}
                             </div>
 
@@ -1166,13 +1194,25 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                                 {ev.subject || (ev.isPersonal ? 'Personale' : isSpecial ? 'Evento' : 'Attività')}
                               </span>
                               {(ev.authorId === profile?.uid || isController || isAdmin) && (
-                                <button
-                                  onClick={() => handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId)}
-                                  className="text-slate-400 hover:text-red-500 transition cursor-pointer"
-                                  title="Elimina"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setEventToEdit(ev);
+                                      setIsEventModalOpen(true);
+                                    }}
+                                    className="text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                                    title="Modifica"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId)}
+                                    className="text-slate-400 hover:text-red-500 transition cursor-pointer"
+                                    title="Elimina"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               )}
                             </div>
                             <h4 className="text-xs sm:text-sm font-bold text-slate-900">{ev.title}</h4>
@@ -1199,9 +1239,16 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
       {/* Modals */}
       <CreateEventModal
         isOpen={isEventModalOpen}
-        onClose={() => setIsEventModalOpen(false)}
+        eventToEdit={eventToEdit}
+        onClose={() => {
+          setIsEventModalOpen(false);
+          setEventToEdit(null);
+        }}
         defaultDate={modalDate}
-        onCreated={() => showToast('Evento salvato!')}
+        onCreated={() => {
+          showToast(eventToEdit ? 'Evento aggiornato!' : 'Evento salvato!');
+          refreshData();
+        }}
       />
 
       <CreateInterrogationModal

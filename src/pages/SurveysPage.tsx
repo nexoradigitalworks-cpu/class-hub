@@ -22,7 +22,7 @@ export const SurveysPage: React.FC = () => {
   const loadData = async () => {
     if (!profile) return;
     try {
-      const list = await surveysAdapter.getSurveys(profile.classId || '', profile.uid);
+      const list = await surveysAdapter.getSurveys(profile.classId || profile.activeClassId || 'cls-dev-test', profile.uid);
       setSurveys(list);
     } catch {
       // Fallback

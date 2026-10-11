@@ -7,10 +7,11 @@ import { Database } from '../types/database';
  * ONLY uses the public/anon publishable key — NEVER service_role.
  */
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : ({} as Record<string, string | undefined>);
+const supabaseUrl = env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = (
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY
+  env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  env.VITE_SUPABASE_ANON_KEY
 )?.trim();
 
 export const isSupabaseConfigured = Boolean(

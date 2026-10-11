@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Bell, Plus, AlertTriangle, Calendar, 
-  Trash2, Search
+  Trash2, Search, Edit3
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { noticesAdapter } from '../services/adapters';
@@ -13,6 +13,7 @@ export const NoticesPage: React.FC = () => {
   const { profile, isController, isAdmin } = useAuth();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [noticeToEdit, setNoticeToEdit] = useState<Notice | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'HIGH' | 'NORMAL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export const NoticesPage: React.FC = () => {
   const loadData = async () => {
     if (!profile) return;
     try {
-      const list = await noticesAdapter.getNotices(profile.classId || '');
+      const list = await noticesAdapter.getNotices(profile.classId || profile.activeClassId || 'cls-dev-test');
       setNotices(list);
     } catch {
       // Fallback
@@ -90,7 +91,10 @@ export const NoticesPage: React.FC = () => {
 
         {isController && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setNoticeToEdit(null);
+              setIsModalOpen(true);
+            }}
             className="flex items-center gap-2 bg-[#EF4444] hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-sm self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -163,13 +167,25 @@ export const NoticesPage: React.FC = () => {
                   </span>
 
                   {(isController || isAdmin) && (
-                    <button
-                      onClick={() => handleDelete(notice.id)}
-                      className="p-1 text-slate-400 hover:text-red-500 rounded transition cursor-pointer"
-                      title="Elimina"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setNoticeToEdit(notice);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1 text-slate-400 hover:text-blue-600 rounded transition cursor-pointer"
+                        title="Modifica avviso"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(notice.id)}
+                        className="p-1 text-slate-400 hover:text-red-500 rounded transition cursor-pointer"
+                        title="Elimina"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -199,8 +215,15 @@ export const NoticesPage: React.FC = () => {
 
       <CreateNoticeModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onCreated={() => showToast('Avviso pubblicato con successo!')}
+        noticeToEdit={noticeToEdit}
+        onClose={() => {
+          setIsModalOpen(false);
+          setNoticeToEdit(null);
+        }}
+        onCreated={() => {
+          showToast(noticeToEdit ? 'Avviso aggiornato con successo!' : 'Avviso pubblicato con successo!');
+          loadData();
+        }}
       />
     </div>
   );

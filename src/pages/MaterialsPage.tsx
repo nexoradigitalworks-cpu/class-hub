@@ -33,7 +33,7 @@ export const MaterialsPage: React.FC = () => {
   const loadData = async () => {
     if (!profile) return;
     try {
-      const list = await materialsAdapter.getMaterials(profile.classId || '');
+      const list = await materialsAdapter.getMaterials(profile.classId || profile.activeClassId || 'cls-dev-test');
       setMaterials(list);
     } catch {
       // Fallback
