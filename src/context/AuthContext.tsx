@@ -84,23 +84,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         let memberships = await classAdapter.getUserMemberships(user.uid);
-        if (memberships.length === 0) {
-          const targetClass = localStore.getClass('cls-dev-test');
-          if (targetClass) {
-            const defaultMem: UserMembership = {
-              classId: 'cls-dev-test',
-              className: targetClass.name,
-              classCode: targetClass.code || 'DEVTEST',
-              role: user.role || 'STUDENT',
-              joinedAt: user.createdAt || new Date().toISOString()
-            };
-            localStore.addUserMembership(user.uid, defaultMem);
-            memberships = [defaultMem];
-          }
-        }
         setUserMemberships(memberships);
 
-        const effectiveClassId = user.activeClassId || user.classId || memberships[0]?.classId || 'cls-dev-test';
+        const effectiveClassId = user.activeClassId || user.classId || memberships[0]?.classId || null;
         let activeClassObj: Classroom | null = null;
         let membersList: ClassMember[] = [];
 
@@ -418,9 +404,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: cleanEmail,
       role: 'STUDENT',
       avatarId: 'avatar-blue',
-      classId: 'cls-dev-test',
-      activeClassId: 'cls-dev-test',
-      className: 'ClassHub — Developer Test',
+      classId: null,
+      activeClassId: null,
+      className: null,
       createdAt: new Date().toISOString()
     };
 
