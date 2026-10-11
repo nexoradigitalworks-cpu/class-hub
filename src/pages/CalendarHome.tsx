@@ -327,7 +327,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
             <div className="flex flex-col">
               <span className="text-sm sm:text-base font-extrabold text-blue-600 flex items-center gap-1.5">
                 <span>{profile?.firstName ? `Ciao, ${profile.firstName}!` : 'Ciao!'}</span>
-                <span className="text-base sm:text-lg inline-block animate-bounce" role="img" aria-label="saluto">👋</span>
+                <span className="text-base sm:text-lg inline-block" role="img" aria-label="saluto">👋</span>
               </span>
               <h1 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight capitalize text-slate-900 leading-tight mt-0.5">
                 {getHeaderTitle()}
@@ -758,84 +758,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                     </div>
                   </div>
 
-                  {/* Interrogazioni & Volontari */}
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-purple-600" />
-                        Interrogazioni ({selectedDayData.interrogations.length})
-                      </span>
-                    </div>
 
-                    {selectedDayData.interrogations.length === 0 ? (
-                      <div className="p-3 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
-                        Nessuna interrogazione programmata per oggi.
-                      </div>
-                    ) : (
-                      selectedDayData.interrogations.map(inter => {
-                        const isBooked = Boolean(inter.volunteerIds?.includes(profile?.uid || '') || inter.volunteers?.some(v => v.userId === profile?.uid));
-                        const isFull = (inter.volunteers?.length || 0) >= inter.maxVolunteers;
-
-                        return (
-                          <div key={inter.id} className="p-3.5 bg-white rounded-2xl border border-purple-100 shadow-2xs space-y-2.5">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded bg-purple-100 text-purple-800">
-                                  {inter.subject}
-                                </span>
-                                <h3 className="text-sm font-black text-slate-900 mt-1">{inter.title}</h3>
-                                <p className="text-xs text-purple-700 font-semibold">{inter.startTime} – {inter.endTime}</p>
-                              </div>
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                isFull ? 'bg-rose-100 text-rose-700' : 'bg-purple-100 text-purple-800'
-                              }`}>
-                                {inter.volunteers.length}/{inter.maxVolunteers} posti
-                              </span>
-                            </div>
-
-                            {inter.notes && (
-                              <p className="text-xs text-slate-600 bg-purple-50/50 p-2 rounded-xl border border-purple-100/60">
-                                {inter.notes}
-                              </p>
-                            )}
-
-                            {/* Volunteers */}
-                            <div className="space-y-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">Volontari:</span>
-                              {inter.volunteers.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">Nessun volontario ancora iscritto.</p>
-                              ) : (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {inter.volunteers.map(v => (
-                                    <span key={v.userId} className="text-xs px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-                                      {v.userName}
-                                      {v.userId === profile?.uid && <span className="text-emerald-600 font-bold">(Tu)</span>}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Action Button */}
-                            <button
-                              onClick={() => handleVolunteerAction(inter.id)}
-                              disabled={!isBooked && isFull}
-                              className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                                isBooked
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : isFull
-                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                    : 'bg-purple-600 text-white shadow-xs'
-                              }`}
-                            >
-                              {isBooked ? 'Ritira iscrizione' : isFull ? 'Posti esauriti' : 'Voglio essere interrogato'}
-                            </button>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
 
                   {/* Verifiche & Events */}
                   <div className="space-y-2.5">
@@ -1129,42 +1052,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* Interrogazioni */}
-                    {selectedDayData.interrogations.map(inter => {
-                      const isBooked = Boolean(inter.volunteerIds?.includes(profile?.uid || '') || inter.volunteers?.some(v => v.userId === profile?.uid));
-                      const isFull = (inter.volunteers?.length || 0) >= inter.maxVolunteers;
 
-                      return (
-                        <div key={inter.id} className="p-3.5 bg-purple-50/40 rounded-xl border border-purple-100 flex flex-col justify-between gap-2.5">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded bg-purple-100 text-purple-800">
-                                {inter.subject}
-                              </span>
-                              <span className="text-xs font-bold text-purple-700">
-                                {inter.volunteers.length}/{inter.maxVolunteers} posti
-                              </span>
-                            </div>
-                            <h4 className="text-xs sm:text-sm font-bold text-slate-900">{inter.title}</h4>
-                            <p className="text-xs text-purple-700 font-medium">{inter.startTime} – {inter.endTime}</p>
-                          </div>
-
-                          <button
-                            onClick={() => handleVolunteerAction(inter.id)}
-                            disabled={!isBooked && isFull}
-                            className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
-                              isBooked
-                                ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
-                                : isFull
-                                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                  : 'bg-purple-600 hover:bg-purple-700 text-white'
-                            }`}
-                          >
-                            {isBooked ? 'Ritira iscrizione' : isFull ? 'Posti esauriti' : 'Offriti volontario'}
-                          </button>
-                        </div>
-                      );
-                    })}
 
                     {/* Verifiche & Events */}
                     {selectedDayData.events.map(ev => {

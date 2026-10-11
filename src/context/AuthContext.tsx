@@ -29,6 +29,7 @@ interface AuthContextType {
   switchActiveClass: (classId: string) => Promise<void>;
   updateUserRole: (targetUid: string, newRole: UserRole) => Promise<void>;
   updateProfileAvatar: (avatarId: string) => Promise<void>;
+  updateProfileName: (firstName: string, lastName: string) => Promise<void>;
   leaveClass: () => Promise<void>;
 }
 
@@ -710,6 +711,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await reloadUserData(profile.uid);
   };
 
+  // Update Profile Name
+  const updateProfileName = async (firstName: string, lastName: string) => {
+    if (!profile) return;
+    const cleanFn = firstName.trim() || profile.firstName;
+    const ln = lastName.trim();
+
+    if (isSupabaseConfigured && supabase) {
+      await authAdapter.saveProfile({
+        ...profile,
+        firstName: cleanFn,
+        lastName: ln
+      });
+      await reloadUserData(profile.uid);
+      return;
+    }
+
+    // Local Fallback
+    const updatedProfile: UserProfile = { ...profile, firstName: cleanFn, lastName: ln };
+    localStore.saveUser(updatedProfile);
+    await reloadUserData(profile.uid);
+  };
+
   // Leave Class
   const leaveClass = async () => {
     if (!profile || !currentClass) return;
@@ -783,6 +806,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchActiveClass,
         updateUserRole,
         updateProfileAvatar,
+        updateProfileName,
         leaveClass
       }}
     >

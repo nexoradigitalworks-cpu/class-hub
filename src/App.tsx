@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar, NavigationTab } from './components/Sidebar';
 import { MobileNavigation } from './components/MobileNavigation';
-import { RoleSwitchBanner } from './components/RoleSwitchBanner';
+import { AccountPage } from './pages/AccountPage';
 import { CalendarHome } from './pages/CalendarHome';
 import { InterrogationsPage } from './pages/InterrogationsPage';
 import { TimetablePage } from './pages/TimetablePage';
@@ -195,8 +195,7 @@ function AppContent() {
         />
       )}
       
-      {/* Top Role & Status Banner */}
-      <RoleSwitchBanner />
+
 
       {/* Main App Body */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -264,6 +263,7 @@ function AppContent() {
           {currentTab === 'sondaggi' && <SurveysPage />}
           {currentTab === 'rappresentanza' && <RepresentationPage />}
           {currentTab === 'controllo' && <ClassControlPage />}
+          {currentTab === 'account' && <AccountPage />}
         </div>
       </div>
 
