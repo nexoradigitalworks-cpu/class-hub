@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { UserProfile, UserRole, Classroom, ClassMember, UserMembership } from '../types';
 import { localStore, PRESET_USERS } from '../services/dataStore';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
@@ -91,8 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         let membersList: ClassMember[] = [];
 
         if (effectiveClassId) {
-          activeClassObj = await classAdapter.getClass(effectiveClassId);
-          membersList = await classAdapter.getMembersOfClass(effectiveClassId);
+          const [cls, members] = await Promise.all([
+            classAdapter.getClass(effectiveClassId),
+            classAdapter.getMembersOfClass(effectiveClassId)
+          ]);
+          activeClassObj = cls;
+          membersList = members;
         }
 
         const currentMembership = memberships.find((m) => m.classId === effectiveClassId);
@@ -766,36 +770,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const activeClassId = currentClass?.id || profile?.activeClassId || profile?.classId || '';
   const isDeveloperModeActive = isDeveloperUser;
 
+  const contextValue = useMemo(() => ({
+    currentUser,
+    profile,
+    currentClass,
+    allMembers,
+    userMemberships,
+    loading,
+    isStudent,
+    isController,
+    isAdmin,
+    activeClassId,
+    isDeveloperModeActive,
+    developerSimulationRole,
+    setDeveloperSimulationRole,
+    loginWithEmail,
+    loginAsDeveloper,
+    registerWithEmail,
+    resetPassword,
+    logout,
+    joinClass,
+    createClass,
+    switchActiveClass,
+    updateUserRole,
+    updateProfileAvatar,
+    updateProfileName,
+    leaveClass
+  }), [
+    currentUser,
+    profile,
+    currentClass,
+    allMembers,
+    userMemberships,
+    loading,
+    isStudent,
+    isController,
+    isAdmin,
+    activeClassId,
+    isDeveloperModeActive,
+    developerSimulationRole
+  ]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        profile,
-        currentClass,
-        allMembers,
-        userMemberships,
-        loading,
-        isStudent,
-        isController,
-        isAdmin,
-        activeClassId,
-        isDeveloperModeActive,
-        developerSimulationRole,
-        setDeveloperSimulationRole,
-        loginWithEmail,
-        loginAsDeveloper,
-        registerWithEmail,
-        resetPassword,
-        logout,
-        joinClass,
-        createClass,
-        switchActiveClass,
-        updateUserRole,
-        updateProfileAvatar,
-        updateProfileName,
-        leaveClass
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

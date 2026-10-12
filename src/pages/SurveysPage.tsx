@@ -31,26 +31,63 @@ export const SurveysPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [profile]);
+  }, [profile?.classId, profile?.activeClassId, profile?.uid]);
 
   const handleVote = async (surveyId: string, optionId: string) => {
     if (!profile) return;
+    const previousSurveys = surveys;
+
+    // Optimistic vote update
+    setSurveys(prev => prev.map(s => {
+      if (s.id !== surveyId) return s;
+      let alreadyVotedOptionId: string | null = null;
+      s.options.forEach(opt => {
+        if (opt.votedUserIds?.includes(profile.uid)) {
+          alreadyVotedOptionId = opt.id;
+        }
+      });
+
+      const updatedOptions = s.options.map(opt => {
+        let userIds = [...(opt.votedUserIds || [])];
+        let votes = opt.votesCount;
+        if (alreadyVotedOptionId && opt.id === alreadyVotedOptionId) {
+          userIds = userIds.filter(id => id !== profile.uid);
+          votes = Math.max(0, votes - 1);
+        }
+        if (opt.id === optionId) {
+          if (!userIds.includes(profile.uid)) {
+            userIds.push(profile.uid);
+            votes += 1;
+          }
+        }
+        return { ...opt, votesCount: votes, votedUserIds: userIds };
+      });
+
+      const totalVotes = updatedOptions.reduce((acc, o) => acc + o.votesCount, 0);
+      return { ...s, options: updatedOptions, totalVotes };
+    }));
+
     try {
       await surveysAdapter.voteSurvey(surveyId, optionId, profile.uid);
       showToast('Voto registrato con successo!');
       await loadData();
     } catch (err: any) {
+      setSurveys(previousSurveys);
       showToast(err.message || 'Errore nella registrazione del voto');
     }
   };
 
   const handleToggleStatus = async (surveyId: string, currentStatus?: 'OPEN' | 'CLOSED') => {
     if (!isController && !isAdmin) return;
+    const newStatus = currentStatus === 'CLOSED' ? 'OPEN' : 'CLOSED';
+    setSurveys(prev => prev.map(s => s.id === surveyId ? { ...s, status: newStatus } : s));
+
     try {
       await surveysAdapter.toggleSurveyStatus(surveyId, currentStatus);
       showToast('Stato sondaggio aggiornato');
       await loadData();
     } catch (err: any) {
+      await loadData();
       showToast(err.message || 'Errore nell\'aggiornamento dello stato');
     }
   };

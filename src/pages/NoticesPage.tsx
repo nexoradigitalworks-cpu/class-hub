@@ -35,7 +35,7 @@ export const NoticesPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [profile]);
+  }, [profile?.classId, profile?.activeClassId, profile?.uid]);
 
   const handleDelete = async (id: string) => {
     if (!isController && !isAdmin) return;

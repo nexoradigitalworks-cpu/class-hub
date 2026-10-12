@@ -34,15 +34,18 @@ export const RepresentationPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [profile]);
+  }, [profile?.classId, profile?.activeClassId, profile?.uid]);
 
   const handleStatusChange = async (id: string, newStatus: RepresentationItem['status']) => {
     if (!isController && !isAdmin) return;
+    setItems(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
+
     try {
       await representationAdapter.updateRepresentationStatus(id, newStatus);
       showToast('Stato richiesta aggiornato');
       await loadData();
     } catch (err: any) {
+      await loadData();
       showToast(err.message || 'Errore nell\'aggiornamento dello stato');
     }
   };

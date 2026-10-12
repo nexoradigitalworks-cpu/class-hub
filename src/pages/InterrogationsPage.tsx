@@ -40,19 +40,57 @@ export const InterrogationsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [profile]);
+  }, [profile?.classId, profile?.activeClassId, profile?.uid]);
 
   const handleVolunteerAction = async (interrogationId: string) => {
     if (!profile) return;
+    const currentInters = interrogations;
+    const targetInter = interrogations.find(i => i.id === interrogationId);
+    if (!targetInter) return;
+
+    const myUid = profile.uid;
+    const myName = formatVolunteerName(profile.firstName, profile.lastName);
+    const isAlreadyBooked = Boolean(
+      targetInter.volunteerIds?.includes(myUid) || 
+      targetInter.volunteers?.some(v => v.userId === myUid)
+    );
+
+    // Optimistic UI update: instantly update without waiting for network
+    setInterrogations(prev => prev.map(item => {
+      if (item.id !== interrogationId) return item;
+      if (isAlreadyBooked) {
+        return {
+          ...item,
+          volunteerIds: (item.volunteerIds || []).filter(id => id !== myUid),
+          volunteers: (item.volunteers || []).filter(v => v.userId !== myUid)
+        };
+      } else {
+        return {
+          ...item,
+          volunteerIds: [...(item.volunteerIds || []), myUid],
+          volunteers: [
+            ...(item.volunteers || []), 
+            { 
+              userId: myUid, 
+              userName: myName, 
+              userAvatar: profile.avatarId || 'avatar-blue', 
+              timestamp: new Date().toISOString() 
+            }
+          ]
+        };
+      }
+    }));
+
     try {
       const res = await toggleVolunteerReservation(profile.classId || '', interrogationId, {
-        uid: profile.uid,
-        name: formatVolunteerName(profile.firstName, profile.lastName),
+        uid: myUid,
+        name: myName,
         avatarId: profile.avatarId
       });
       showToast(res.message);
       await loadData();
     } catch (err: any) {
+      setInterrogations(currentInters);
       showToast(err.message || 'Errore nella prenotazione.');
     }
   };
@@ -60,11 +98,16 @@ export const InterrogationsPage: React.FC = () => {
   const handleToggleClose = async (id: string, currentStatus: string) => {
     if (!isController && !isAdmin) return;
     const newStatus = currentStatus === 'CLOSED' ? 'OPEN' : 'CLOSED';
+    
+    // Optimistic update
+    setInterrogations(prev => prev.map(item => item.id === id ? { ...item, status: newStatus as any } : item));
+
     try {
       await interrogationsAdapter.updateInterrogationStatus(id, newStatus);
       showToast(newStatus === 'CLOSED' ? 'Iscrizioni chiuse' : 'Iscrizioni riaperte');
       await loadData();
     } catch (err: any) {
+      await loadData();
       showToast(err.message || 'Errore nell\'aggiornamento dello stato.');
     }
   };

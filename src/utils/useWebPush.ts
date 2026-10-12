@@ -32,7 +32,14 @@ export function useWebPush() {
 
   const checkExistingSubscription = async () => {
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
+      ]);
+      if (!registration) {
+        setIsSubscribed(false);
+        return;
+      }
       const sub = await registration.pushManager.getSubscription();
       setIsSubscribed(!!sub);
     } catch {
@@ -57,7 +64,15 @@ export function useWebPush() {
         return false;
       }
 
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500))
+      ]);
+      if (!registration) {
+        logger.push('warn', 'Service Worker non pronto per notifiche push');
+        setLoading(false);
+        return false;
+      }
       
       // Check if VAPID key is provided
       if (!vapidPublicKey) {

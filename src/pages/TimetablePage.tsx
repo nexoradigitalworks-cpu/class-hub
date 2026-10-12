@@ -72,7 +72,7 @@ export const TimetablePage: React.FC = () => {
 
   useEffect(() => {
     syncData();
-  }, [profile]);
+  }, [profile?.classId, profile?.activeClassId]);
 
   const handleSaveSlot = async (slot: TimetableSlot) => {
     try {

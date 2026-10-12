@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   format, addWeeks, subWeeks, addMonths, subMonths, startOfWeek, 
   addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval 
@@ -61,7 +61,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
     setTimeout(() => setToastMessage(null), 3200);
   };
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     if (!profile) return;
     const cid = profile.classId || profile.activeClassId || 'cls-dev-test';
     try {
@@ -78,11 +78,11 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
     } catch {
       // Fallback
     }
-  };
+  }, [profile?.classId, profile?.activeClassId, profile?.uid]);
 
   useEffect(() => {
     refreshData();
-  }, [profile]);
+  }, [refreshData]);
 
   // Week calculation (Monday - Friday: 5 days)
   const weekStartMonday = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -138,18 +138,16 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
   ];
 
   // Detect special collective events (Assemblea, Uscita, Gita, Eventi di classe/istituto)
-  const isSpecialEvent = (e: CalendarEvent) => {
+  const isSpecialEvent = useCallback((e: CalendarEvent) => {
     return e.type === 'EVENTO' || 
       (!e.isPersonal && e.type !== 'VERIFICA') || 
       /assemblea|uscita|visita|gita|viaggio|pcto|evento|torneo|collettiv|straordinari|progetto|festa|vacanz|ponte|sciopero|orientamento/i.test(e.title || '') ||
       /assemblea|uscita|visita|gita|viaggio|pcto|evento|torneo|orientamento/i.test(e.subject || '');
-  };
+  }, []);
 
-  // Helper to get events for a specific day
-  const getDayItems = (day: Date) => {
-    const dStr = format(day, 'yyyy-MM-dd');
-    let evs = events.filter(e => {
-      if (e.date !== dStr) return false;
+  // Pre-filter events according to current active filters
+  const filteredEvents = useMemo(() => {
+    return events.filter(e => {
       if (subjectFilter !== 'ALL' && e.subject && !e.subject.includes(subjectFilter)) return false;
       if (filterType === 'EVENTI' && !isSpecialEvent(e)) return false;
       if (filterType === 'VERIFICHE' && e.type !== 'VERIFICA') return false;
@@ -157,15 +155,55 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
       if (filterType === 'PERSONALI' && !e.isPersonal) return false;
       return true;
     });
+  }, [events, subjectFilter, filterType, isSpecialEvent]);
 
-    let ints = interrogations.filter(i => {
-      if (i.date !== dStr) return false;
+  // Pre-filter interrogations
+  const filteredInterrogations = useMemo(() => {
+    return interrogations.filter(i => {
       if (subjectFilter !== 'ALL' && i.subject !== subjectFilter) return false;
       if (filterType === 'EVENTI' || filterType === 'VERIFICHE' || filterType === 'PERSONALI') return false;
       return true;
     });
+  }, [interrogations, subjectFilter, filterType]);
 
-    const nots = notices.filter(n => n.date === dStr);
+  // Fast O(1) lookup maps grouped by YYYY-MM-DD
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    for (const ev of filteredEvents) {
+      const list = map.get(ev.date);
+      if (list) list.push(ev);
+      else map.set(ev.date, [ev]);
+    }
+    return map;
+  }, [filteredEvents]);
+
+  const interrogationsByDate = useMemo(() => {
+    const map = new Map<string, Interrogation[]>();
+    for (const inter of filteredInterrogations) {
+      const list = map.get(inter.date);
+      if (list) list.push(inter);
+      else map.set(inter.date, [inter]);
+    }
+    return map;
+  }, [filteredInterrogations]);
+
+  const noticesByDate = useMemo(() => {
+    const map = new Map<string, Notice[]>();
+    for (const n of notices) {
+      const list = map.get(n.date);
+      if (list) list.push(n);
+      else map.set(n.date, [n]);
+    }
+    return map;
+  }, [notices]);
+
+  // Instant O(1) helper to get items for any specific day
+  const getDayItems = useCallback((day: Date) => {
+    const dStr = format(day, 'yyyy-MM-dd');
+    const evs = eventsByDate.get(dStr) || [];
+    const ints = interrogationsByDate.get(dStr) || [];
+    const nots = noticesByDate.get(dStr) || [];
+
     const hasSpecialEvents = evs.some(isSpecialEvent);
     const hasVerifiche = evs.some(e => e.type === 'VERIFICA');
     const hasInterrogazioni = ints.length > 0;
@@ -181,19 +219,59 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
       hasInterrogazioni,
       hasPersonal
     };
-  };
+  }, [eventsByDate, interrogationsByDate, noticesByDate, isSpecialEvent]);
 
+  // Instant optimistic volunteer action to eliminate UI freeze
   const handleVolunteerAction = async (interrogationId: string) => {
     if (!profile) return;
+    const currentInters = interrogations;
+    const targetInter = interrogations.find(i => i.id === interrogationId);
+    if (!targetInter) return;
+
+    const myUid = profile.uid;
+    const myName = formatVolunteerName(profile.firstName, profile.lastName);
+    const isAlreadyBooked = Boolean(
+      targetInter.volunteerIds?.includes(myUid) || 
+      targetInter.volunteers?.some(v => v.userId === myUid)
+    );
+
+    // Optimistic UI update: instantly update local state without blocking
+    setInterrogations(prev => prev.map(item => {
+      if (item.id !== interrogationId) return item;
+      if (isAlreadyBooked) {
+        return {
+          ...item,
+          volunteerIds: (item.volunteerIds || []).filter(id => id !== myUid),
+          volunteers: (item.volunteers || []).filter(v => v.userId !== myUid)
+        };
+      } else {
+        return {
+          ...item,
+          volunteerIds: [...(item.volunteerIds || []), myUid],
+          volunteers: [
+            ...(item.volunteers || []), 
+            { 
+              userId: myUid, 
+              userName: myName, 
+              userAvatar: profile.avatarId || 'avatar-blue', 
+              timestamp: new Date().toISOString() 
+            }
+          ]
+        };
+      }
+    }));
+
     try {
       const res = await toggleVolunteerReservation(profile.classId || '', interrogationId, {
-        uid: profile.uid,
-        name: formatVolunteerName(profile.firstName, profile.lastName),
+        uid: myUid,
+        name: myName,
         avatarId: profile.avatarId
       });
       showToast(res.message);
       refreshData();
     } catch (err: any) {
+      // Revert on error
+      setInterrogations(currentInters);
       showToast(err.message || "Impossibile completare l'operazione.");
     }
   };
@@ -1383,7 +1461,10 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
         isOpen={isInterrogationModalOpen}
         onClose={() => setIsInterrogationModalOpen(false)}
         defaultDate={modalDate}
-        onCreated={() => showToast('Interrogazione programmata!')}
+        onCreated={() => {
+          showToast('Interrogazione programmata!');
+          refreshData();
+        }}
       />
 
     </div>
