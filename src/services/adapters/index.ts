@@ -16,6 +16,7 @@ import {
   MaterialItem, Survey, RepresentationItem, TimetableSlot, 
   SubjectItem, Classroom, ClassMember, UserMembership, UserRole 
 } from '../../types';
+import { formatVolunteerName } from '../../utils/formatters';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function isValidUUID(id: string | null | undefined): boolean {
@@ -687,7 +688,7 @@ export const interrogationsAdapter = {
         const volunteersList = (item.interrogation_volunteers || []).map((v: any) => {
           const fn = v.profiles?.first_name || '';
           const ln = v.profiles?.last_name || '';
-          const full = `${fn} ${ln}`.trim();
+          const full = formatVolunteerName(fn, ln);
           return {
             userId: v.user_id,
             userName: full || 'Studente',

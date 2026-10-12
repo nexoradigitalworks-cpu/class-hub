@@ -21,6 +21,7 @@ import { CreateInterrogationModal } from '../components/CreateInterrogationModal
 import { FormSelect } from '../components/ui/FormSelect';
 import { SelectOption } from '../components/ui/CustomSelect';
 import { formatSubjectToOption } from '../utils/dropdownPresets';
+import { formatVolunteerName } from '../utils/formatters';
 
 type CalendarRangeMode = 'week' | 'month';
 type MobileWeekView = 'day' | 'all';
@@ -187,7 +188,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
     try {
       const res = await toggleVolunteerReservation(profile.classId || '', interrogationId, {
         uid: profile.uid,
-        name: `${profile.firstName} ${profile.lastName[0]}.`,
+        name: formatVolunteerName(profile.firstName, profile.lastName),
         avatarId: profile.avatarId
       });
       showToast(res.message);
@@ -600,7 +601,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                                     className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-white border border-purple-100 text-slate-700 flex items-center gap-1"
                                   >
                                     <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-                                    {v.userName}
+                                    {formatVolunteerName(v.userName)}
                                   </span>
                                 ))}
                               </div>
@@ -760,80 +761,205 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
 
 
-                  {/* Verifiche & Events */}
-                  <div className="space-y-2.5">
+                  {/* Verifiche & Impegni (Incluso Interrogazioni) */}
+                  <div className="space-y-3">
                     <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                       <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
-                      Verifiche & Impegni ({selectedDayData.events.length})
+                      Verifiche & Impegni ({selectedDayData.total})
                     </span>
 
-                    {selectedDayData.events.length === 0 ? (
-                      <div className="p-3 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
-                        Nessun evento o verifica per questa giornata.
+                    {selectedDayData.total === 0 ? (
+                      <div className="p-4 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                        Nessuna verifica, interrogazione o impegno per questa giornata.
                       </div>
                     ) : (
-                      selectedDayData.events.map(ev => {
-                        const isVerifica = ev.type === 'VERIFICA';
-                        const isSpecial = isSpecialEvent(ev);
+                      <>
+                        {/* Interrogazioni programmate */}
+                        {selectedDayData.interrogations.map(inter => {
+                          const isBooked = Boolean(inter.volunteerIds?.includes(profile?.uid || '') || inter.volunteers?.some(v => v.userId === profile?.uid));
+                          const isFull = (inter.volunteers?.length || 0) >= inter.maxVolunteers;
+                          const isClosed = inter.status === 'CLOSED';
 
-                        return (
-                          <div 
-                            key={ev.id} 
-                            className={`p-3.5 rounded-2xl border space-y-1.5 shadow-2xs ${
-                              isSpecial
-                                ? 'bg-gradient-to-r from-emerald-50/80 to-teal-50/40 border-emerald-200/90 ring-1 ring-emerald-200/60'
-                                : 'bg-white border-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                                    isSpecial
-                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                      : isVerifica
-                                        ? 'bg-blue-100 text-blue-800' 
-                                        : 'bg-slate-100 text-slate-700'
+                          return (
+                            <div 
+                              key={inter.id}
+                              className={`p-3.5 rounded-2xl border space-y-2.5 shadow-2xs transition ${
+                                isBooked
+                                  ? 'bg-purple-50/70 border-purple-300 ring-1 ring-purple-300/60'
+                                  : 'bg-white border-purple-200/90 hover:border-purple-300'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-purple-600" />
+                                    Interrogazione · {inter.subject}
+                                  </span>
+                                  {isBooked && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                                      Iscritto (Tu)
+                                    </span>
+                                  )}
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    isClosed ? 'bg-slate-100 text-slate-600' : isFull ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'
                                   }`}>
-                                    {isSpecial && <Sparkles className="w-3 h-3 text-emerald-600" />}
-                                    {ev.subject || (isSpecial ? 'Assemblea / Uscita' : isVerifica ? 'Verifica' : ev.isPersonal ? 'Privato' : 'Evento')}
+                                    {isClosed ? 'Chiusa' : isFull ? 'Completa' : 'Posti disponibili'}
                                   </span>
                                 </div>
-                                <h3 className="text-sm font-bold text-slate-900 mt-1">{ev.title}</h3>
-                                <p className="text-xs text-slate-500">{ev.startTime} {ev.endTime ? `– ${ev.endTime}` : ''}</p>
+
+                                <span className="text-xs font-black text-purple-700 shrink-0">
+                                  {inter.volunteers.length}/{inter.maxVolunteers} vol.
+                                </span>
                               </div>
 
-                              {(ev.authorId === profile?.uid || isController || isAdmin) && (
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => {
-                                      setEventToEdit(ev);
-                                      setIsEventModalOpen(true);
-                                    }}
-                                    className="p-1.5 text-slate-400 hover:text-blue-500 rounded-lg cursor-pointer"
-                                    title="Modifica"
-                                  >
-                                    <Edit3 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId)}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer"
-                                    title="Elimina"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                              <div>
+                                <h3 className="text-sm font-bold text-slate-900 leading-snug">{inter.title}</h3>
+                                <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{inter.startTime} – {inter.endTime}</span>
+                                  {inter.teacher && (
+                                    <>
+                                      <span>·</span>
+                                      <span>Docente: <strong className="text-slate-700 font-semibold">{inter.teacher}</strong></span>
+                                    </>
+                                  )}
                                 </div>
+                              </div>
+
+                              {inter.notes && (
+                                <p className="text-xs text-slate-600 bg-purple-50/40 p-2 rounded-xl border border-purple-100/60 italic">
+                                  "{inter.notes}"
+                                </p>
+                              )}
+
+                              {/* Volunteers list */}
+                              <div className="pt-2 border-t border-purple-100 space-y-1.5">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                                  <span className="flex items-center gap-1">
+                                    <Users className="w-3 h-3 text-purple-600" />
+                                    Lista Volontari:
+                                  </span>
+                                  <span className="text-purple-700 text-[10px]">
+                                    {inter.volunteers.length} di {inter.maxVolunteers} prenotati
+                                  </span>
+                                </div>
+
+                                {inter.volunteers.length === 0 ? (
+                                  <p className="text-[11px] text-slate-400 italic">Nessun volontario prenotato al momento.</p>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {inter.volunteers.map(v => (
+                                      <span 
+                                        key={v.userId} 
+                                        className="text-[11px] font-medium px-2 py-0.5 rounded-lg bg-purple-50 text-slate-800 border border-purple-200/80 flex items-center gap-1.5 shadow-2xs"
+                                      >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0" />
+                                        <span>{formatVolunteerName(v.userName)}</span>
+                                        {v.userId === profile?.uid && (
+                                          <span className="text-[9px] font-bold text-purple-700 bg-purple-100 px-1 rounded">Tu</span>
+                                        )}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Volunteer Action button */}
+                              <button
+                                onClick={() => handleVolunteerAction(inter.id)}
+                                disabled={isClosed || (!isBooked && isFull)}
+                                className={`w-full mt-1 py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                                  isBooked
+                                    ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                                    : isClosed || isFull
+                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                      : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs'
+                                }`}
+                              >
+                                {isBooked ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Iscritto (Ritira prenotazione)</span>
+                                  </>
+                                ) : isClosed ? (
+                                  <span>Iscrizioni chiuse</span>
+                                ) : isFull ? (
+                                  <span>Posti esauriti</span>
+                                ) : (
+                                  <>
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                    <span>Offriti volontario per questa interrogazione</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Verifiche & Other Events */}
+                        {selectedDayData.events.map(ev => {
+                          const isVerifica = ev.type === 'VERIFICA';
+                          const isSpecial = isSpecialEvent(ev);
+
+                          return (
+                            <div 
+                              key={ev.id} 
+                              className={`p-3.5 rounded-2xl border space-y-1.5 shadow-2xs ${
+                                isSpecial
+                                  ? 'bg-gradient-to-r from-emerald-50/80 to-teal-50/40 border-emerald-200/90 ring-1 ring-emerald-200/60'
+                                  : 'bg-white border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                      isSpecial
+                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                        : isVerifica
+                                          ? 'bg-blue-100 text-blue-800' 
+                                          : 'bg-slate-100 text-slate-700'
+                                    }`}>
+                                      {isSpecial && <Sparkles className="w-3 h-3 text-emerald-600" />}
+                                      {ev.subject || (isSpecial ? 'Assemblea / Uscita' : isVerifica ? 'Verifica' : ev.isPersonal ? 'Privato' : 'Evento')}
+                                    </span>
+                                  </div>
+                                  <h3 className="text-sm font-bold text-slate-900 mt-1">{ev.title}</h3>
+                                  <p className="text-xs text-slate-500">{ev.startTime} {ev.endTime ? `– ${ev.endTime}` : ''}</p>
+                                </div>
+
+                                {(ev.authorId === profile?.uid || isController || isAdmin) && (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setEventToEdit(ev);
+                                        setIsEventModalOpen(true);
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-blue-500 rounded-lg cursor-pointer"
+                                      title="Modifica"
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteEvent(ev.id, ev.isPersonal, ev.authorId)}
+                                      className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer"
+                                      title="Elimina"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {ev.description && (
+                                <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                  {ev.description}
+                                </p>
                               )}
                             </div>
-
-                            {ev.description && (
-                              <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                {ev.description}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })
+                          );
+                        })}
+                      </>
                     )}
                   </div>
                 </div>
@@ -884,6 +1010,11 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                                     </span>
                                     <p className="text-xs font-bold text-slate-900 mt-0.5">{inter.title}</p>
                                     <p className="text-[10px] text-purple-700">{inter.startTime} – {inter.endTime}</p>
+                                    {inter.volunteers.length > 0 && (
+                                      <p className="text-[9px] text-purple-900/80 mt-1 font-medium">
+                                        Volontari: {inter.volunteers.map(v => formatVolunteerName(v.userName)).join(', ')}
+                                      </p>
+                                    )}
                                   </div>
                                   <button
                                     onClick={() => handleVolunteerAction(inter.id)}
@@ -1052,7 +1183,115 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Interrogazioni programmate */}
+                    {selectedDayData.interrogations.map(inter => {
+                      const isBooked = Boolean(inter.volunteerIds?.includes(profile?.uid || '') || inter.volunteers?.some(v => v.userId === profile?.uid));
+                      const isFull = (inter.volunteers?.length || 0) >= inter.maxVolunteers;
+                      const isClosed = inter.status === 'CLOSED';
 
+                      return (
+                        <div 
+                          key={inter.id} 
+                          className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 transition ${
+                            isBooked 
+                              ? 'bg-purple-50/70 border-purple-300 ring-1 ring-purple-300/60' 
+                              : 'bg-white border-purple-200/90 hover:border-purple-300'
+                          }`}
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-purple-600" />
+                                Interrogazione · {inter.subject}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isClosed ? 'bg-slate-100 text-slate-600' : isFull ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {isClosed ? 'Chiusa' : isFull ? 'Completa' : 'Posti disponibili'}
+                              </span>
+                            </div>
+
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900">{inter.title}</h4>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{inter.startTime} – {inter.endTime}</span>
+                              {inter.teacher && (
+                                <>
+                                  <span>·</span>
+                                  <span>Docente: <strong className="text-slate-700 font-semibold">{inter.teacher}</strong></span>
+                                </>
+                              )}
+                            </div>
+
+                            {inter.notes && (
+                              <p className="text-xs text-slate-600 bg-purple-50/40 p-1.5 rounded border border-purple-100 italic">
+                                "{inter.notes}"
+                              </p>
+                            )}
+
+                            {/* Volunteer Slots list */}
+                            <div className="pt-2 border-t border-purple-100/80 space-y-1">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                                <span className="flex items-center gap-1">
+                                  <Users className="w-3 h-3 text-purple-600" />
+                                  Lista Volontari:
+                                </span>
+                                <span className="text-purple-700 text-[10px]">
+                                  {inter.volunteers.length}/{inter.maxVolunteers}
+                                </span>
+                              </div>
+
+                              {inter.volunteers.length === 0 ? (
+                                <p className="text-[11px] text-slate-400 italic">Nessun volontario prenotato.</p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {inter.volunteers.map(v => (
+                                    <span 
+                                      key={v.userId} 
+                                      className="text-[10px] font-medium px-2 py-0.5 rounded bg-purple-50 text-slate-800 border border-purple-200/80 flex items-center gap-1"
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0" />
+                                      <span>{formatVolunteerName(v.userName)}</span>
+                                      {v.userId === profile?.uid && (
+                                        <span className="text-[8px] font-bold text-purple-700 bg-purple-100 px-1 rounded">Tu</span>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleVolunteerAction(inter.id)}
+                            disabled={isClosed || (!isBooked && isFull)}
+                            className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                              isBooked
+                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                                : isClosed || isFull
+                                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                  : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs'
+                            }`}
+                          >
+                            {isBooked ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Iscritto (Ritira)</span>
+                              </>
+                            ) : isClosed ? (
+                              <span>Iscrizioni chiuse</span>
+                            ) : isFull ? (
+                              <span>Posti esauriti</span>
+                            ) : (
+                              <>
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>Offriti volontario</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
 
                     {/* Verifiche & Events */}
                     {selectedDayData.events.map(ev => {

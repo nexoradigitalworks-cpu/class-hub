@@ -13,6 +13,7 @@ import { FormSelect } from '../components/ui/FormSelect';
 import { SelectOption } from '../components/ui/CustomSelect';
 import { SUBJECT_OPTIONS } from '../utils/dropdownPresets';
 import { AVATAR_COLORS } from '../utils/theme';
+import { formatVolunteerName } from '../utils/formatters';
 
 export const InterrogationsPage: React.FC = () => {
   const { profile, isController, isAdmin } = useAuth();
@@ -46,7 +47,7 @@ export const InterrogationsPage: React.FC = () => {
     try {
       const res = await toggleVolunteerReservation(profile.classId || '', interrogationId, {
         uid: profile.uid,
-        name: `${profile.firstName} ${profile.lastName[0]}.`,
+        name: formatVolunteerName(profile.firstName, profile.lastName),
         avatarId: profile.avatarId
       });
       showToast(res.message);
@@ -313,9 +314,9 @@ export const InterrogationsPage: React.FC = () => {
                           >
                             <div className="flex items-center gap-2">
                               <div className={`w-5 h-5 rounded-full ${avatar.bg} ${avatar.text} flex items-center justify-center text-[9px] font-bold`}>
-                                {vol.userName.slice(0, 2).toUpperCase()}
+                                {formatVolunteerName(vol.userName).slice(0, 2).toUpperCase()}
                               </div>
-                              <span className="font-medium text-slate-800">{vol.userName}</span>
+                              <span className="font-medium text-slate-800">{formatVolunteerName(vol.userName)}</span>
                               {vol.userId === profile?.uid && (
                                 <span className="text-[10px] text-purple-600 font-bold">(Tu)</span>
                               )}
