@@ -4,13 +4,14 @@ import { interrogationsAdapter, timetableAdapter } from '../services/adapters';
 import { X, Clock, AlertCircle } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { MAX_VOLUNTEERS_OPTIONS, formatSubjectToOption, SUBJECT_OPTIONS } from '../utils/dropdownPresets';
-import { SubjectItem } from '../types';
+import { SubjectItem, Interrogation } from '../types';
 import { SelectOption } from './ui/CustomSelect';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   defaultDate?: string;
+  interrogationToEdit?: Interrogation | null;
   onCreated?: () => void;
 }
 
@@ -18,6 +19,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
   isOpen,
   onClose,
   defaultDate,
+  interrogationToEdit,
   onCreated
 }) => {
   const { profile, activeClassId, currentClass } = useAuth();
@@ -37,9 +39,28 @@ export const CreateInterrogationModal: React.FC<Props> = ({
   useEffect(() => {
     if (isOpen) {
       setError(null);
+      if (interrogationToEdit) {
+        setTitle(interrogationToEdit.title || '');
+        setSubject(interrogationToEdit.subject || 'Filosofia');
+        setDate(interrogationToEdit.date || defaultDate || new Date().toISOString().split('T')[0]);
+        setStartTime(interrogationToEdit.startTime || '10:00');
+        setEndTime(interrogationToEdit.endTime || '11:00');
+        setMaxVolunteers(String(interrogationToEdit.maxVolunteers || 3));
+        setTeacher(interrogationToEdit.teacher || '');
+        setNotes(interrogationToEdit.notes || '');
+      } else {
+        setTitle('');
+        setDate(defaultDate || new Date().toISOString().split('T')[0]);
+        setStartTime('10:00');
+        setEndTime('11:00');
+        setMaxVolunteers('3');
+        setTeacher('');
+        setNotes('');
+      }
+
       timetableAdapter.getSubjects(profile?.classId || '').then((classSubs) => {
         setSubjects(classSubs);
-        if (classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
+        if (!interrogationToEdit && classSubs.length > 0 && !classSubs.some(s => s.name === subject)) {
           setSubject(classSubs[0].name);
           if (classSubs[0].defaultTeacher && !teacher) {
             setTeacher(classSubs[0].defaultTeacher);
@@ -47,7 +68,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
         }
       });
     }
-  }, [isOpen, profile?.classId]);
+  }, [isOpen, interrogationToEdit, defaultDate, profile?.classId]);
 
   if (!isOpen || !profile) return null;
 
@@ -71,8 +92,8 @@ export const CreateInterrogationModal: React.FC<Props> = ({
 
     try {
       setSubmitting(true);
-      await interrogationsAdapter.createInterrogation(
-        {
+      if (interrogationToEdit) {
+        await interrogationsAdapter.updateInterrogation(interrogationToEdit.id, {
           title: title.trim(),
           subject,
           date,
@@ -80,11 +101,24 @@ export const CreateInterrogationModal: React.FC<Props> = ({
           endTime,
           maxVolunteers: Number(maxVolunteers) || 3,
           teacher: teacher || undefined,
-          notes: notes || undefined,
-          classId: targetClassId
-        },
-        profile.uid
-      );
+          notes: notes || undefined
+        });
+      } else {
+        await interrogationsAdapter.createInterrogation(
+          {
+            title: title.trim(),
+            subject,
+            date,
+            startTime,
+            endTime,
+            maxVolunteers: Number(maxVolunteers) || 3,
+            teacher: teacher || undefined,
+            notes: notes || undefined,
+            classId: targetClassId
+          },
+          profile.uid
+        );
+      }
 
       setTitle('');
       setNotes('');
@@ -92,7 +126,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
       onCreated?.();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Errore nella creazione dell\'interrogazione.');
+      setError(err.message || 'Errore nel salvataggio dell\'interrogazione.');
     } finally {
       setSubmitting(false);
     }
@@ -110,10 +144,12 @@ export const CreateInterrogationModal: React.FC<Props> = ({
           <div>
             <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
               <Clock className="w-5 h-5 text-purple-600" />
-              <span>Nuova Interrogazione Programmata</span>
+              <span>{interrogationToEdit ? 'Modifica Interrogazione' : 'Nuova Interrogazione Programmata'}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Imposta materia, posti volontari disponibili e orario per la prova orale.
+              {interrogationToEdit 
+                ? 'Aggiorna data, posti volontari disponibili o altri dettagli della sessione orale.' 
+                : 'Imposta materia, posti volontari disponibili e orario per la prova orale.'}
             </p>
           </div>
           <button
@@ -242,9 +278,10 @@ export const CreateInterrogationModal: React.FC<Props> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-[#7C3AED] hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+              disabled={submitting}
+              className="px-5 py-2.5 bg-[#7C3AED] hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
             >
-              Pubblica Interrogazione
+              {submitting ? 'Salvataggio...' : interrogationToEdit ? 'Salva Modifiche' : 'Pubblica Interrogazione'}
             </button>
           </div>
         </form>

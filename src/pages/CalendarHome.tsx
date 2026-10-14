@@ -64,6 +64,7 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<CalendarEvent | null>(null);
   const [isInterrogationModalOpen, setIsInterrogationModalOpen] = useState(false);
+  const [interrogationToEdit, setInterrogationToEdit] = useState<Interrogation | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<'ALL' | 'EVENTI' | 'VERIFICHE' | 'INTERROGAZIONI' | 'PERSONALI'>('ALL');
   const [subjectFilter, setSubjectFilter] = useState<string>('ALL');
@@ -331,7 +332,24 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
   const openNewInterrogation = (dayDate?: Date) => {
     setModalDate(format(dayDate || selectedDate, 'yyyy-MM-dd'));
+    setInterrogationToEdit(null);
     setIsInterrogationModalOpen(true);
+  };
+
+  const handleDeleteInterrogation = async (interrogationId: string) => {
+    if (!isController && !isAdmin) {
+      showToast('Solo il Controller o l\'Admin possono eliminare le interrogazioni');
+      return;
+    }
+    if (confirm('Sei sicuro di voler eliminare questa interrogazione programmata?')) {
+      try {
+        await interrogationsAdapter.deleteInterrogation(interrogationId);
+        showToast('Interrogazione eliminata con successo');
+        refreshData();
+      } catch (err: any) {
+        showToast(err.message || 'Errore nell\'eliminazione dell\'interrogazione');
+      }
+    }
   };
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -685,11 +703,38 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                                 <span className="text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">
                                   {inter.subject}
                                 </span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                                  isFull ? 'bg-rose-100 text-rose-700' : 'bg-purple-200/80 text-purple-900'
-                                }`}>
-                                  {inter.volunteers.length}/{inter.maxVolunteers}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                    isFull ? 'bg-rose-100 text-rose-700' : 'bg-purple-200/80 text-purple-900'
+                                  }`}>
+                                    {inter.volunteers.length}/{inter.maxVolunteers}
+                                  </span>
+                                  {(isController || isAdmin) && (
+                                    <div className="flex items-center gap-0.5">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setInterrogationToEdit(inter);
+                                          setIsInterrogationModalOpen(true);
+                                        }}
+                                        className="p-0.5 text-slate-400 hover:text-purple-600 rounded transition cursor-pointer"
+                                        title="Modifica"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteInterrogation(inter.id);
+                                        }}
+                                        className="p-0.5 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                        title="Elimina"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
 
                               <p className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
@@ -918,9 +963,32 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                                     </span>
                                   </div>
 
-                                  <span className="text-xs font-black text-purple-700 shrink-0">
-                                    {inter.volunteers.length}/{inter.maxVolunteers} vol.
-                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className="text-xs font-black text-purple-700">
+                                      {inter.volunteers.length}/{inter.maxVolunteers} vol.
+                                    </span>
+                                    {(isController || isAdmin) && (
+                                      <div className="flex items-center gap-0.5">
+                                        <button
+                                          onClick={() => {
+                                            setInterrogationToEdit(inter);
+                                            setIsInterrogationModalOpen(true);
+                                          }}
+                                          className="p-1 text-slate-400 hover:text-purple-600 rounded-lg transition cursor-pointer"
+                                          title="Modifica"
+                                        >
+                                          <Edit3 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteInterrogation(inter.id)}
+                                          className="p-1 text-slate-400 hover:text-red-500 rounded-lg transition cursor-pointer"
+                                          title="Elimina"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 <div>
@@ -1332,11 +1400,34 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                                   <Clock className="w-3 h-3 text-purple-600" />
                                   Interrogazione · {inter.subject}
                                 </span>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                  isClosed ? 'bg-slate-100 text-slate-600' : isFull ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'
-                                }`}>
-                                  {isClosed ? 'Chiusa' : isFull ? 'Completa' : 'Posti disponibili'}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    isClosed ? 'bg-slate-100 text-slate-600' : isFull ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
+                                    {isClosed ? 'Chiusa' : isFull ? 'Completa' : 'Posti disponibili'}
+                                  </span>
+                                  {(isController || isAdmin) && (
+                                    <div className="flex items-center gap-0.5">
+                                      <button
+                                        onClick={() => {
+                                          setInterrogationToEdit(inter);
+                                          setIsInterrogationModalOpen(true);
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-purple-600 rounded-lg transition cursor-pointer"
+                                        title="Modifica"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteInterrogation(inter.id)}
+                                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg transition cursor-pointer"
+                                        title="Elimina"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
 
                               <h4 className="text-xs sm:text-sm font-bold text-slate-900">{inter.title}</h4>
@@ -1512,10 +1603,14 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
       <CreateInterrogationModal
         isOpen={isInterrogationModalOpen}
-        onClose={() => setIsInterrogationModalOpen(false)}
+        interrogationToEdit={interrogationToEdit}
+        onClose={() => {
+          setIsInterrogationModalOpen(false);
+          setInterrogationToEdit(null);
+        }}
         defaultDate={modalDate}
         onCreated={() => {
-          showToast('Interrogazione programmata!');
+          showToast(interrogationToEdit ? 'Interrogazione modificata!' : 'Interrogazione programmata!');
           refreshData();
         }}
       />

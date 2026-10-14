@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Clock, Plus, CheckCircle2, 
   Trash2, Filter, Lock, Unlock, Users,
-  Check
+  Check, Edit3
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { interrogationsAdapter } from '../services/adapters';
@@ -21,6 +21,7 @@ export const InterrogationsPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [interrogationToEdit, setInterrogationToEdit] = useState<Interrogation | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -235,10 +236,13 @@ export const InterrogationsPage: React.FC = () => {
           </p>
         </div>
 
-        {isController && (
+        {(isController || isAdmin) && (
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-[#7C3AED] hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm self-start sm:self-auto"
+            onClick={() => {
+              setInterrogationToEdit(null);
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-[#7C3AED] hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Programma Interrogazione</span>
@@ -370,19 +374,29 @@ export const InterrogationsPage: React.FC = () => {
 
               {/* Bottom Actions */}
               <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                {isController && (
+                {(isController || isAdmin) && (
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        setInterrogationToEdit(item);
+                        setIsModalOpen(true);
+                      }}
+                      title="Modifica interrogazione (volontari, data, ecc.)"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition cursor-pointer"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => handleToggleClose(item.id, item.status)}
                       title={item.status === 'CLOSED' ? 'Riapri iscrizioni' : 'Chiudi iscrizioni'}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                     >
                       {item.status === 'CLOSED' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
                       title="Elimina interrogazione"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -429,13 +443,17 @@ export const InterrogationsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Creation Modal */}
+      {/* Creation / Edit Modal */}
       <CreateInterrogationModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        interrogationToEdit={interrogationToEdit}
+        onClose={() => {
+          setIsModalOpen(false);
+          setInterrogationToEdit(null);
+        }}
         onCreated={() => {
           loadData();
-          showToast('Interrogazione programmata con successo!');
+          showToast(interrogationToEdit ? 'Interrogazione modificata con successo!' : 'Interrogazione programmata con successo!');
         }}
       />
     </div>

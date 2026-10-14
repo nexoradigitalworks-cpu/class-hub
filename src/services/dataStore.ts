@@ -882,9 +882,17 @@ class LocalDataStore {
 
   public updateInterrogation(id: string, updates: Partial<Interrogation>): Interrogation | null {
     if (!this.state.interrogations[id]) return null;
+    const current = this.state.interrogations[id];
+    const newMax = updates.maxVolunteers !== undefined ? updates.maxVolunteers : current.maxVolunteers;
+    const currentVolCount = (current.volunteers || []).length;
+    let newStatus = updates.status !== undefined ? updates.status : current.status;
+    if (newStatus !== 'CLOSED') {
+      newStatus = currentVolCount >= newMax ? 'FULL' : 'OPEN';
+    }
     this.state.interrogations[id] = {
-      ...this.state.interrogations[id],
-      ...updates
+      ...current,
+      ...updates,
+      status: newStatus
     };
     this.notify();
     return this.state.interrogations[id];
