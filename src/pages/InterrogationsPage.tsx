@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Clock, Plus, CheckCircle2, 
-  Trash2, Filter, Lock, Unlock, Calendar, Users,
+  Trash2, Filter, Lock, Unlock, Users,
   Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +13,7 @@ import { FormSelect } from '../components/ui/FormSelect';
 import { SelectOption } from '../components/ui/CustomSelect';
 import { SUBJECT_OPTIONS } from '../utils/dropdownPresets';
 import { AVATAR_COLORS } from '../utils/theme';
-import { formatVolunteerName } from '../utils/formatters';
+import { formatVolunteerName, formatInterrogationDate } from '../utils/formatters';
 
 export const InterrogationsPage: React.FC = () => {
   const { profile, isController, isAdmin } = useAuth();
@@ -314,23 +314,9 @@ export const InterrogationsPage: React.FC = () => {
 
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 leading-snug">{item.title}</h3>
-                  <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="font-semibold text-slate-700">{item.date}</span>
-                    <span>·</span>
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{item.startTime} – {item.endTime}</span>
-                  </div>
-                  {item.teacher && (
-                    <p className="text-xs text-slate-500 mt-1">
-                      Docente: <span className="font-semibold text-slate-700">{item.teacher}</span>
-                    </p>
-                  )}
-                  {item.notes && (
-                    <p className="text-xs text-slate-600 mt-1.5 p-2 bg-slate-50 rounded-lg border border-slate-100 italic">
-                      "{item.notes}"
-                    </p>
-                  )}
+                  <p className="text-xs font-semibold text-slate-500 mt-1">
+                    {formatInterrogationDate(item.date)}
+                  </p>
                 </div>
 
                 {/* Volunteers Slot List */}
