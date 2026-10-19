@@ -131,17 +131,37 @@ export const InterrogationsPage: React.FC = () => {
     }
   };
 
-  // Today in YYYY-MM-DD
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const [tick, setTick] = useState(0);
 
-  // Split interrogations into Scheduled (future/today) and Archive (past)
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 30000); // Check every 30 seconds
+    return () => clearInterval(timer);
+  }, []);
+
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const isInterrogationArchived = (item: Interrogation) => {
+    const itemDate = item.date || '';
+    if (itemDate < todayStr) return true;
+    if (itemDate === todayStr) {
+      if (!item.startTime) return false;
+      const [h, m] = item.startTime.split(':').map(Number);
+      const startMinutes = (h || 0) * 60 + (m || 0);
+      return currentMinutes > startMinutes;
+    }
+    return false;
+  };
+
+  // Split interrogations into Scheduled (future or today not yet started) and Archive (past date or past start time today)
   const scheduledInterrogations = useMemo(() => {
-    return interrogations.filter(i => (i.date || '') >= todayStr);
-  }, [interrogations, todayStr]);
+    return interrogations.filter(i => !isInterrogationArchived(i));
+  }, [interrogations, todayStr, currentMinutes, tick]);
 
   const archivedInterrogations = useMemo(() => {
-    return interrogations.filter(i => (i.date || '') < todayStr);
-  }, [interrogations, todayStr]);
+    return interrogations.filter(i => isInterrogationArchived(i));
+  }, [interrogations, todayStr, currentMinutes, tick]);
 
   // Current tab interrogations pool
   const currentTabPool = activeTab === 'SCHEDULED' ? scheduledInterrogations : archivedInterrogations;
@@ -336,7 +356,7 @@ export const InterrogationsPage: React.FC = () => {
           const isBooked = Boolean(item.volunteerIds?.includes(profile?.uid || '') || item.volunteers?.some(v => v.userId === profile?.uid));
           const isFull = (item.volunteers?.length || 0) >= item.maxVolunteers;
           const isClosed = item.status === 'CLOSED';
-          const isArchived = (item.date || '') < todayStr;
+          const isArchived = isInterrogationArchived(item);
           const examinedCount = (item.volunteers || []).filter(v => v.status === 'EXAMINED').length;
 
           return (

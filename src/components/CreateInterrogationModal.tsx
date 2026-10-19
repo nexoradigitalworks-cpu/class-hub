@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { interrogationsAdapter, timetableAdapter } from '../services/adapters';
-import { X, Clock, AlertCircle } from 'lucide-react';
+import { X, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import { FormSelect } from './ui/FormSelect';
 import { MAX_VOLUNTEERS_OPTIONS, formatSubjectToOption, SUBJECT_OPTIONS } from '../utils/dropdownPresets';
 import { SubjectItem, Interrogation } from '../types';
@@ -272,16 +272,18 @@ export const CreateInterrogationModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              disabled={submitting}
+              className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer disabled:opacity-50"
             >
               Annulla
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-5 py-2.5 bg-[#7C3AED] hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+              className="px-5 py-2.5 bg-[#7C3AED] hover:bg-purple-700 active:scale-95 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-2"
             >
-              {submitting ? 'Salvataggio...' : interrogationToEdit ? 'Salva Modifiche' : 'Pubblica Interrogazione'}
+              {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{submitting ? 'Salvataggio in corso...' : interrogationToEdit ? 'Salva Modifiche' : 'Pubblica Interrogazione'}</span>
             </button>
           </div>
         </form>
