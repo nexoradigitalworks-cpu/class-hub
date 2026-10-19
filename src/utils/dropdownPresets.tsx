@@ -170,11 +170,27 @@ export const MAX_VOLUNTEERS_OPTIONS: SelectOption[] = [
   },
   {
     value: '5',
-    label: '5 Volontari (Sessione Estesa)',
+    label: '5 Volontari',
     icon: <Users className="w-3.5 h-3.5 text-amber-600" />,
     badge: 'Estesa',
     badgeClass: 'bg-amber-100 text-amber-700',
     description: 'Sessione di recupero su più ore di lezione'
+  },
+  {
+    value: '6',
+    label: '6 Volontari',
+    icon: <Users className="w-3.5 h-3.5 text-indigo-600" />,
+    badge: 'Gruppo',
+    badgeClass: 'bg-indigo-100 text-indigo-700',
+    description: 'Sessione approfondita per gruppi o più ore'
+  },
+  {
+    value: '7',
+    label: '7 Volontari (Massimo)',
+    icon: <Users className="w-3.5 h-3.5 text-rose-600" />,
+    badge: 'Massima',
+    badgeClass: 'bg-rose-100 text-rose-700',
+    description: 'Capienza massima per sessioni plenarie o recupero'
   }
 ];
 

@@ -487,10 +487,10 @@ export const InterrogationsPage: React.FC = () => {
                         setIsManageVolunteersModalOpen(true);
                       }}
                       title="Gestisci volontari ed effettivamente interrogati"
-                      className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      className="px-2 py-1 rounded-lg bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/50 transition cursor-pointer flex items-center gap-1 text-[11px] font-semibold shrink-0"
                     >
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>Gestisci volontari</span>
+                      <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Volontari</span>
                     </button>
 
                     <button
