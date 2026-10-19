@@ -317,18 +317,24 @@ export interface Database {
           id: string;
           interrogation_id: string;
           user_id: string;
+          status?: string | null;
+          notes?: string | null;
           joined_at: string;
         };
         Insert: {
           id?: string;
           interrogation_id: string;
           user_id: string;
+          status?: string | null;
+          notes?: string | null;
           joined_at?: string;
         };
         Update: {
           id?: string;
           interrogation_id?: string;
           user_id?: string;
+          status?: string | null;
+          notes?: string | null;
           joined_at?: string;
         };
         Relationships: [];
@@ -549,6 +555,7 @@ export interface Database {
           user_id: string;
           class_id: string;
           subscription: Json;
+          preferences?: Json;
           created_at: string;
           updated_at: string;
         };
@@ -557,6 +564,7 @@ export interface Database {
           user_id: string;
           class_id: string;
           subscription: Json;
+          preferences?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -565,6 +573,7 @@ export interface Database {
           user_id?: string;
           class_id?: string;
           subscription?: Json;
+          preferences?: Json;
           created_at?: string;
           updated_at?: string;
         };

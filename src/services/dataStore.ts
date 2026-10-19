@@ -898,6 +898,23 @@ class LocalDataStore {
     return this.state.interrogations[id];
   }
 
+  public updateVolunteersList(id: string, volunteers: VolunteerSlot[]): Interrogation | null {
+    if (!this.state.interrogations[id]) return null;
+    const current = this.state.interrogations[id];
+    const newStatus = current.status === 'CLOSED' 
+      ? 'CLOSED' 
+      : (volunteers.length >= current.maxVolunteers ? 'FULL' : 'OPEN');
+
+    this.state.interrogations[id] = {
+      ...current,
+      volunteers,
+      volunteerIds: volunteers.map(v => v.userId),
+      status: newStatus
+    };
+    this.notify();
+    return this.state.interrogations[id];
+  }
+
   public deleteInterrogation(id: string): void {
     delete this.state.interrogations[id];
     this.notify();

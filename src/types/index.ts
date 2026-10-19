@@ -67,11 +67,15 @@ export interface CalendarEvent {
   createdAt?: string;
 }
 
+export type VolunteerStatus = 'VOLUNTEER' | 'EXAMINED' | 'NOT_EXAMINED' | 'ABSENT';
+
 export interface VolunteerSlot {
   userId: string;
   userName: string;
   userAvatar: string;
   timestamp: string;
+  status?: VolunteerStatus;
+  notes?: string;
 }
 
 export interface Interrogation {
@@ -85,10 +89,21 @@ export interface Interrogation {
   deadline?: string;
   volunteers: VolunteerSlot[];
   volunteerIds: string[];
+  examinedStudentIds?: string[];
   status: 'OPEN' | 'FULL' | 'CLOSED';
   teacher?: string;
   notes?: string;
   classId?: string;
+}
+
+export interface PushPreferences {
+  verifiche: boolean;
+  interrogazioni: boolean;
+  eventi: boolean;
+  avvisi: boolean;
+  promemoria: boolean;
+  materiali: boolean;
+  sondaggi: boolean;
 }
 
 export interface Notice {

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   User, Mail, School, ShieldCheck, Key, LogOut, 
   Sparkles, Check, ChevronRight, Lock, Calendar, BookOpen,
-  UserCog, Terminal, Save, Edit3
+  UserCog, Terminal, Save, Edit3, Bell, BellRing, BellOff,
+  Smartphone, Send, AlertCircle, CheckCircle2, Sliders
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AvatarIcon } from '../components/AvatarIcon';
 import { ROLE_LABELS } from '../utils/theme';
+import { useWebPush } from '../utils/useWebPush';
 
 export const AccountPage: React.FC = () => {
   const { 
@@ -31,6 +33,42 @@ export const AccountPage: React.FC = () => {
   const [lastName, setLastName] = useState(profile?.lastName || '');
   const [savingName, setSavingName] = useState(false);
   const [nameSavedMessage, setNameSavedMessage] = useState(false);
+
+  // Push Notifications Hook & State
+  const {
+    isSupported: pushSupported,
+    isSubscribed: pushSubscribed,
+    permission: pushPermission,
+    loading: pushLoading,
+    isIOS,
+    isStandalone,
+    preferences: pushPrefs,
+    updatePreferences,
+    subscribeToPush,
+    unsubscribeFromPush,
+    sendTestNotification
+  } = useWebPush();
+
+  const [testingPush, setTestingPush] = useState(false);
+  const [testPushMessage, setTestPushMessage] = useState<{ success: boolean; text: string } | null>(null);
+
+  const handleTogglePush = async () => {
+    if (!pushSupported) return;
+    if (pushSubscribed) {
+      await unsubscribeFromPush();
+    } else {
+      await subscribeToPush();
+    }
+  };
+
+  const handleTestPush = async () => {
+    setTestingPush(true);
+    setTestPushMessage(null);
+    const res = await sendTestNotification();
+    setTestPushMessage({ success: res.success, text: res.message });
+    setTestingPush(false);
+    setTimeout(() => setTestPushMessage(null), 4000);
+  };
 
   useEffect(() => {
     if (profile) {
@@ -266,6 +304,191 @@ export const AccountPage: React.FC = () => {
             <span>{copied ? 'Copiato!' : 'Copia Codice'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Push Notifications & Preferences Card */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className={`p-2.5 rounded-2xl ${pushSubscribed ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
+              {pushSubscribed ? <BellRing className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+            </span>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <span>Notifiche Push Web</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  !pushSupported 
+                    ? 'bg-slate-100 text-slate-500'
+                    : pushPermission === 'denied'
+                      ? 'bg-rose-100 text-rose-700'
+                      : pushSubscribed
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {!pushSupported 
+                    ? 'Non supportate' 
+                    : pushPermission === 'denied'
+                      ? 'Permesso Negato'
+                      : pushSubscribed 
+                        ? 'Attive' 
+                        : 'Disattivate'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ricevi avvisi istantanei su verifiche, interrogazioni, avvisi e promemoria anche ad app chiusa.
+              </p>
+            </div>
+          </div>
+
+          {/* Master Toggle */}
+          <button
+            onClick={handleTogglePush}
+            disabled={!pushSupported || pushLoading || pushPermission === 'denied'}
+            className={`w-12 h-7 rounded-full transition-colors relative p-1 shrink-0 ${
+              pushSubscribed ? 'bg-purple-600' : 'bg-slate-300'
+            } ${(!pushSupported || pushLoading || pushPermission === 'denied') ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+            title={!pushSupported ? 'Non supportato' : 'Attiva o disattiva notifiche push'}
+          >
+            <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+              pushSubscribed ? 'translate-x-5' : 'translate-x-0'
+            }`} />
+          </button>
+        </div>
+
+        {/* iPhone/iPad PWA Instructions if running in non-standalone iOS */}
+        {isIOS && !isStandalone && (
+          <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 space-y-2">
+            <div className="flex items-center gap-2 text-blue-900 font-bold text-xs">
+              <Smartphone className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Requisiti Notifiche Push su iPhone / iPad (iOS 16.4+)</span>
+            </div>
+            <p className="text-xs text-blue-800 leading-relaxed">
+              Su iOS le notifiche push web funzionano esclusivamente quando ClassHub è installata sulla Schermata Home:
+            </p>
+            <ol className="text-xs text-blue-900 list-decimal list-inside space-y-1 font-medium pl-1">
+              <li>Tocca il tasto <strong>Condividi</strong> (icona quadrata con freccia verso l'alto) in Safari.</li>
+              <li>Scorri il menu e tocca <strong>«Aggiungi alla schermata Home»</strong>.</li>
+              <li>Apri ClassHub dall'icona creata sulla Home e attiva le notifiche da questa schermata.</li>
+            </ol>
+          </div>
+        )}
+
+        {/* Permission Denied Guide */}
+        {pushPermission === 'denied' && (
+          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Permessi notifiche bloccati nelle impostazioni del browser</p>
+              <p className="text-[11px] text-rose-700 mt-0.5">
+                Hai negato i permessi di notifica. Per riattivarli, clicca sull'icona delle impostazioni del sito accanto alla barra degli indirizzi e imposta Notifiche su "Consenti".
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Notification Category Preferences */}
+        {pushSubscribed && (
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
+              <Sliders className="w-3.5 h-3.5 text-purple-600" />
+              <span>Personalizza Categorie di Notifiche</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <label className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition">
+                <span className="font-semibold text-slate-800">Compiti & Verifiche</span>
+                <input
+                  type="checkbox"
+                  checked={pushPrefs.verifiche}
+                  onChange={e => updatePreferences({ verifiche: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+              </label>
+
+              <label className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition">
+                <span className="font-semibold text-slate-800">Interrogazioni & Volontari</span>
+                <input
+                  type="checkbox"
+                  checked={pushPrefs.interrogazioni}
+                  onChange={e => updatePreferences({ interrogazioni: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+              </label>
+
+              <label className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition">
+                <span className="font-semibold text-slate-800">Eventi & Assemblee</span>
+                <input
+                  type="checkbox"
+                  checked={pushPrefs.eventi}
+                  onChange={e => updatePreferences({ eventi: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+              </label>
+
+              <label className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition">
+                <span className="font-semibold text-slate-800">Avvisi di Classe</span>
+                <input
+                  type="checkbox"
+                  checked={pushPrefs.avvisi}
+                  onChange={e => updatePreferences({ avvisi: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+              </label>
+
+              <label className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition">
+                <span className="font-semibold text-slate-800">Promemoria Giorno Prima & Mattina</span>
+                <input
+                  type="checkbox"
+                  checked={pushPrefs.promemoria}
+                  onChange={e => updatePreferences({ promemoria: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+              </label>
+
+              <label className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition">
+                <span className="font-semibold text-slate-800">Materiali Didattici</span>
+                <input
+                  type="checkbox"
+                  checked={pushPrefs.materiali}
+                  onChange={e => updatePreferences({ materiali: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+              </label>
+
+              <label className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition sm:col-span-2">
+                <span className="font-semibold text-slate-800">Sondaggi & Comunicazioni Rappresentanti</span>
+                <input
+                  type="checkbox"
+                  checked={pushPrefs.sondaggi}
+                  onChange={e => updatePreferences({ sondaggi: e.target.checked })}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+              </label>
+            </div>
+
+            {/* Test Push Button */}
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleTestPush}
+                disabled={testingPush}
+                className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs transition cursor-pointer flex items-center gap-2 border border-purple-200 self-start sm:self-auto"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{testingPush ? 'Invio test in corso...' : 'Invia Notifica di Test'}</span>
+              </button>
+
+              {testPushMessage && (
+                <span className={`text-xs font-bold flex items-center gap-1.5 ${
+                  testPushMessage.success ? 'text-emerald-600' : 'text-rose-600'
+                }`}>
+                  {testPushMessage.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  {testPushMessage.text}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* User Memberships / Classes List */}

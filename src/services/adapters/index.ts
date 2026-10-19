@@ -14,7 +14,8 @@ import { logger } from '../../utils/logger';
 import { 
   UserProfile, CalendarEvent, Interrogation, Notice, 
   MaterialItem, Survey, RepresentationItem, TimetableSlot, 
-  SubjectItem, Classroom, ClassMember, UserMembership, UserRole 
+  SubjectItem, Classroom, ClassMember, UserMembership, UserRole,
+  VolunteerSlot
 } from '../../types';
 import { formatVolunteerName } from '../../utils/formatters';
 
@@ -620,10 +621,30 @@ export const eventsAdapter = {
       return;
     }
 
+    // Retrieve event details before deleting to dispatch push notification
+    const { data: eventInfo } = await supabase
+      .from('events')
+      .select('title, class_id, is_personal, type')
+      .eq('id', eventId)
+      .maybeSingle();
+
     const { error } = await supabase.from('events').delete().eq('id', eventId);
     if (error) {
       logger.adapter('error', 'Errore eliminazione evento cloud', { error: error.message });
       throw new Error(error.message);
+    }
+
+    if (eventInfo?.class_id && !eventInfo.is_personal) {
+      const isVerifica = eventInfo.type === 'VERIFICA';
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: eventInfo.class_id,
+          notificationType: 'EVENT',
+          action: 'DELETE',
+          customTitle: isVerifica ? '[Annullata] Verifica Scolastica' : '[Annullato] Evento in Calendario',
+          customBody: `${eventInfo.title || 'Attività'} è stato rimosso dal calendario.`
+        }
+      }).catch(() => {});
     }
   },
 
@@ -643,14 +664,27 @@ export const eventsAdapter = {
     if (updates.description !== undefined) payload.description = updates.description;
     if (updates.teacher !== undefined) payload.teacher = updates.teacher;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('events')
       .update(payload as any)
-      .eq('id', eventId);
+      .eq('id', eventId)
+      .select('id, title, class_id, is_personal, type')
+      .single();
 
     if (error) {
       logger.adapter('error', 'Errore modifica evento cloud', { error: error.message });
       throw new Error(error.message);
+    }
+
+    if (data?.class_id && !data.is_personal) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'EVENT',
+          action: 'UPDATE',
+          referenceId: data.id
+        }
+      }).catch(() => {});
     }
   }
 };
@@ -672,6 +706,8 @@ export const interrogationsAdapter = {
           interrogation_volunteers (
             user_id,
             joined_at,
+            status,
+            notes,
             profiles (first_name, last_name, avatar_id)
           )
         `)
@@ -693,9 +729,15 @@ export const interrogationsAdapter = {
             userId: v.user_id,
             userName: full || 'Studente',
             userAvatar: v.profiles?.avatar_id || 'avatar-blue',
-            timestamp: v.joined_at
+            timestamp: v.joined_at,
+            status: (v.status || 'VOLUNTEER') as any,
+            notes: v.notes || undefined
           };
         });
+
+        const examinedIds = volunteersList
+          .filter((v: any) => v.status === 'EXAMINED')
+          .map((v: any) => v.userId);
 
         return {
           id: item.id,
@@ -711,7 +753,8 @@ export const interrogationsAdapter = {
           notes: item.notes || undefined,
           classId: item.class_id,
           volunteers: volunteersList,
-          volunteerIds: volunteersList.map((v: any) => v.userId)
+          volunteerIds: volunteersList.map((v: any) => v.userId),
+          examinedStudentIds: examinedIds
         };
       });
     } catch (err: any) {
@@ -806,6 +849,12 @@ export const interrogationsAdapter = {
       return;
     }
 
+    const { data: interInfo } = await supabase
+      .from('interrogations')
+      .select('class_id, subject_name, title')
+      .eq('id', id)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('interrogations')
       .delete()
@@ -814,6 +863,18 @@ export const interrogationsAdapter = {
     if (error) {
       logger.adapter('error', 'Errore eliminazione interrogazione', { error: error.message });
       throw new Error(error.message);
+    }
+
+    if (interInfo?.class_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: interInfo.class_id,
+          notificationType: 'INTERROGATION',
+          action: 'DELETE',
+          customTitle: '[Annullata] Interrogazione Annullata',
+          customBody: `L'interrogazione di ${interInfo.subject_name || interInfo.title || 'classe'} è stata rimossa.`
+        }
+      }).catch(() => {});
     }
   },
 
@@ -883,7 +944,7 @@ export const interrogationsAdapter = {
         // Book volunteer slot: check status and capacity
         const { data: interrogation, error: intError } = await supabase
           .from('interrogations')
-          .select('status, max_volunteers')
+          .select('id, class_id, status, max_volunteers, subject_name')
           .eq('id', interrogationId)
           .single();
 
@@ -912,11 +973,41 @@ export const interrogationsAdapter = {
           .from('interrogation_volunteers')
           .insert({
             interrogation_id: interrogationId,
-            user_id: userId
+            user_id: userId,
+            status: 'VOLUNTEER'
           });
 
         if (insError) {
-          throw new Error(insError.message);
+          // Fallback without status column if schema not yet updated
+          const { error: fallbackErr } = await supabase
+            .from('interrogation_volunteers')
+            .insert({
+              interrogation_id: interrogationId,
+              user_id: userId
+            });
+          if (fallbackErr) {
+            throw new Error(fallbackErr.message);
+          }
+        }
+
+        // Check if newly reached full capacity, notify class if so
+        const newCount = (count || 0) + 1;
+        if (newCount >= interrogation.max_volunteers) {
+          await supabase
+            .from('interrogations')
+            .update({ status: 'FULL' })
+            .eq('id', interrogationId);
+
+          if (interrogation.class_id) {
+            supabase.functions.invoke('send-push-notification', {
+              body: {
+                classId: interrogation.class_id,
+                notificationType: 'INTERROGATION',
+                action: 'FULL_SLOTS',
+                referenceId: interrogation.id
+              }
+            }).catch(() => {});
+          }
         }
 
         return { success: true, message: 'Prenotazione registrata! Sei nella lista volontari.' };
@@ -944,14 +1035,117 @@ export const interrogationsAdapter = {
     if (updates.notes !== undefined) payload.notes = updates.notes;
     if (updates.status !== undefined) payload.status = updates.status;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('interrogations')
       .update(payload as any)
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, class_id, subject_name')
+      .single();
 
     if (error) {
       logger.adapter('error', 'Errore modifica interrogazione cloud', { error: error.message });
       throw new Error(error.message);
+    }
+
+    if (data?.class_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'INTERROGATION',
+          action: 'UPDATE',
+          referenceId: data.id
+        }
+      }).catch(() => {});
+    }
+  },
+
+  async updateInterrogationVolunteers(
+    interrogationId: string, 
+    volunteers: VolunteerSlot[],
+    classId?: string
+  ): Promise<void> {
+    if (!isSupabaseConfigured || !supabase || !isValidUUID(interrogationId)) {
+      localStore.updateVolunteersList(interrogationId, volunteers);
+      return;
+    }
+
+    try {
+      const { data: inter } = await supabase
+        .from('interrogations')
+        .select('id, class_id, max_volunteers, status, subject_name')
+        .eq('id', interrogationId)
+        .single();
+
+      const targetClassId = classId || inter?.class_id;
+
+      // Existing volunteers in database
+      const { data: existingRows } = await supabase
+        .from('interrogation_volunteers')
+        .select('id, user_id, status')
+        .eq('interrogation_id', interrogationId);
+
+      const existingUserIds = new Set((existingRows || []).map((r: any) => r.user_id));
+      const newUserIds = new Set(volunteers.map(v => v.userId));
+
+      // Delete removed volunteers
+      const toDelete = (existingRows || []).filter((r: any) => !newUserIds.has(r.user_id));
+      for (const del of toDelete) {
+        await supabase
+          .from('interrogation_volunteers')
+          .delete()
+          .eq('id', del.id);
+      }
+
+      // Upsert current volunteers with their statuses
+      for (const v of volunteers) {
+        const payload: Record<string, any> = {
+          interrogation_id: interrogationId,
+          user_id: v.userId,
+          status: v.status || 'VOLUNTEER',
+          notes: v.notes || null
+        };
+
+        const { error: upsertErr } = await supabase
+          .from('interrogation_volunteers')
+          .upsert(payload, { onConflict: 'interrogation_id,user_id' });
+
+        if (upsertErr) {
+          // Fallback if status column not present
+          try {
+            await supabase
+              .from('interrogation_volunteers')
+              .upsert({ interrogation_id: interrogationId, user_id: v.userId }, { onConflict: 'interrogation_id,user_id' });
+          } catch {
+            // Ignore fallback error
+          }
+        }
+      }
+
+      // Update interrogation status
+      if (inter) {
+        const isFull = volunteers.length >= inter.max_volunteers;
+        if (inter.status !== 'CLOSED') {
+          const newStatus = isFull ? 'FULL' : 'OPEN';
+          await supabase
+            .from('interrogations')
+            .update({ status: newStatus })
+            .eq('id', interrogationId);
+
+          if (isFull && inter.status !== 'FULL' && targetClassId) {
+            supabase.functions.invoke('send-push-notification', {
+              body: {
+                classId: targetClassId,
+                notificationType: 'INTERROGATION',
+                action: 'FULL_SLOTS',
+                referenceId: interrogationId
+              }
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (err: any) {
+      logger.adapter('error', 'Errore gestione manuale volontari cloud', { error: err?.message });
+      throw new Error(err?.message || 'Impossibile aggiornare i volontari sul server.');
     }
   }
 };
@@ -1237,6 +1431,19 @@ export const materialsAdapter = {
     if (error || !data) {
       logger.adapter('error', 'Errore inserimento materiale cloud', { error: error?.message });
       throw new Error(error?.message || 'Impossibile registrare il materiale nel database.');
+    }
+
+    if (data.class_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'MATERIAL',
+          action: 'CREATE',
+          referenceId: data.id,
+          customTitle: 'Nuovo Materiale Didattico',
+          customBody: `Caricato "${material.title}" per ${material.subject}`
+        }
+      }).catch(() => {});
     }
 
     return {
@@ -1597,6 +1804,19 @@ export const surveysAdapter = {
       throw new Error(optError.message);
     }
 
+    if (surveyRow.class_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: surveyRow.class_id,
+          notificationType: 'SURVEY',
+          action: 'CREATE',
+          referenceId: surveyRow.id,
+          customTitle: 'Nuovo Sondaggio di Classe',
+          customBody: `Aperto: "${surveyRow.title}"`
+        }
+      }).catch(() => {});
+    }
+
     return {
       id: surveyRow.id,
       title: surveyRow.title,
@@ -1760,6 +1980,19 @@ export const representationAdapter = {
     if (error || !data) {
       logger.adapter('error', 'Errore creazione richiesta rappresentanza cloud', { error: error?.message });
       throw new Error(error?.message || 'Errore durante la creazione della proposta.');
+    }
+
+    if (data.class_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          classId: data.class_id,
+          notificationType: 'REPRESENTATION',
+          action: 'CREATE',
+          referenceId: data.id,
+          customTitle: 'Nuova Comunicazione Rappresentanti',
+          customBody: `Nuova ${item.category || 'proposta'}: "${item.title}"`
+        }
+      }).catch(() => {});
     }
 
     return {

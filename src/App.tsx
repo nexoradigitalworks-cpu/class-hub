@@ -21,6 +21,7 @@ import { UpdatePasswordModal } from './components/UpdatePasswordModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { interrogationsAdapter, noticesAdapter, surveysAdapter } from './services/adapters';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { processScheduledReminders } from './services/scheduledReminders';
 import { GraduationCap, Loader2, X } from 'lucide-react';
 
 const getLegalRoute = (): 'privacy' | 'terms' | null => {
@@ -118,7 +119,10 @@ function AppContent() {
 
   useEffect(() => {
     updateCounts();
-  }, [profile?.classId]);
+    if (profile?.uid && (profile.classId || profile.activeClassId)) {
+      processScheduledReminders(profile).catch(() => {});
+    }
+  }, [profile?.classId, profile?.activeClassId, profile?.uid]);
 
   // 0. Public Legal Pages (Accessible without authentication)
   if (legalRoute === 'privacy') {

@@ -1,4 +1,6 @@
-// Custom push notification event listener for Service Worker
+// Service Worker Push Event Handler for ClassHub
+// Handles background web push notifications and deep-linking navigation
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -7,11 +9,15 @@ self.addEventListener('push', (event) => {
     const title = data.title || 'ClassHub';
     const options = {
       body: data.body || 'Nuovo aggiornamento nella tua classe',
-      icon: '/pwa-192x192.png',
+      icon: data.icon || '/pwa-192x192.png',
       badge: '/favicon.svg',
       tag: data.tag || 'classhub-notification',
+      renotify: true,
+      vibrate: [150, 80, 150],
       data: {
-        url: data.url || '/'
+        url: data.url || '/',
+        referenceId: data.referenceId,
+        notificationType: data.notificationType
       }
     };
 
@@ -25,17 +31,23 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/';
+  const rawUrl = event.notification.data?.url || '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Find an existing client window to focus
       for (const client of windowClients) {
-        if (client.url === targetUrl && 'focus' in client) {
+        if ('focus' in client) {
+          // Navigate to target route if client is on root or different page
+          if (client.url && client.navigate) {
+            client.navigate(rawUrl);
+          }
           return client.focus();
         }
       }
+      // If no window open, open new window with target url
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(rawUrl);
       }
     })
   );
