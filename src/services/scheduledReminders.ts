@@ -110,15 +110,15 @@ export async function processScheduledReminders(profile: UserProfile): Promise<n
           }
         }).catch(() => {});
 
-        // Log remote to prevent duplicate
-        await (supabase as any)
-          .from('scheduled_reminders_log')
-          .insert({
-            user_id: profile.uid,
-            reference_id: ev.id,
-            reminder_type: reminderType
-          })
-          .catch(() => {});
+        try {
+          await (supabase as any)
+            .from('scheduled_reminders_log')
+            .insert({
+              user_id: profile.uid,
+              reference_id: ev.id,
+              reminder_type: reminderType
+            });
+        } catch {}
       } else if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(title, { body, icon: '/pwa-192x192.png' });
       }
@@ -176,14 +176,15 @@ export async function processScheduledReminders(profile: UserProfile): Promise<n
           }
         }).catch(() => {});
 
-        await (supabase as any)
-          .from('scheduled_reminders_log')
-          .insert({
-            user_id: profile.uid,
-            reference_id: inter.id,
-            reminder_type: reminderType
-          })
-          .catch(() => {});
+        try {
+          await (supabase as any)
+            .from('scheduled_reminders_log')
+            .insert({
+              user_id: profile.uid,
+              reference_id: inter.id,
+              reminder_type: reminderType
+            });
+        } catch {}
       } else if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(title, { body, icon: '/pwa-192x192.png' });
       }
