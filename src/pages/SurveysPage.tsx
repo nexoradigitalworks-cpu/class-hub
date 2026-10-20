@@ -180,7 +180,11 @@ export const SurveysPage: React.FC = () => {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleToggleStatus(survey.id)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+                      className={`p-1.5 rounded-lg transition cursor-pointer ${
+                        isClosed
+                          ? 'text-purple-600 bg-purple-50 hover:bg-purple-100 hover:text-purple-700'
+                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                      }`}
                       title={isClosed ? 'Riapri sondaggio' : 'Chiudi sondaggio'}
                     >
                       {isClosed ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}

@@ -451,9 +451,9 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
             
             {/* Welcome Greeting & Range Title */}
             <div className="flex flex-col">
-              <span className="text-sm sm:text-base font-extrabold text-blue-600 flex items-center gap-1.5">
+              <span className="text-sm sm:text-base font-extrabold text-blue-600 inline-flex items-center gap-1.5">
                 <span>{profile?.firstName ? `Ciao, ${profile.firstName}!` : 'Ciao!'}</span>
-                <span className="text-base sm:text-lg inline-block" role="img" aria-label="saluto">👋</span>
+                <span className="text-base sm:text-lg inline-flex items-center justify-center" role="img" aria-label="saluto">👋</span>
               </span>
               <h1 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight capitalize text-slate-900 leading-tight mt-0.5">
                 {getHeaderTitle()}
@@ -489,38 +489,10 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
 
           </div>
 
-          {/* Filter Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 mt-2.5 pt-2 border-t border-slate-100">
-            <div className="w-40 sm:w-48 shrink-0">
-              <FormSelect
-                value={filterType}
-                onChange={(val) => setFilterType(val as any)}
-                options={filterTypeOptions}
-                compact
-              />
-            </div>
-
-            <div className="w-36 sm:w-44 shrink-0">
-              <FormSelect
-                value={subjectFilter}
-                onChange={setSubjectFilter}
-                options={calendarSubjectOptions}
-                compact
-              />
-            </div>
-
-            {(filterType !== 'ALL' || subjectFilter !== 'ALL') && (
-              <button
-                onClick={() => { setFilterType('ALL'); setSubjectFilter('ALL'); }}
-                className="text-[11px] font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
-              >
-                Resetta filtri
-              </button>
-            )}
-
-            {/* Mobile-only view toggle in Week Mode */}
-            {rangeMode === 'week' && (
-              <div className="flex sm:hidden ml-auto items-center bg-slate-100 p-0.5 rounded-lg text-[11px] font-bold">
+          {/* Mobile-only view toggle in Week Mode */}
+          {rangeMode === 'week' && (
+            <div className="flex sm:hidden items-center justify-end mt-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-[11px] font-bold">
                 <button
                   onClick={() => setMobileWeekView('day')}
                   className={`px-2 py-0.5 rounded transition ${mobileWeekView === 'day' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500'}`}
@@ -534,8 +506,8 @@ export const CalendarHome: React.FC<CalendarHomeProps> = () => {
                   Tutti (5g)
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* -------------------- WEEK VIEW (LUNEDÌ - VENERDÌ) -------------------- */}

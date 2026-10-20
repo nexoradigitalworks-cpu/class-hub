@@ -327,29 +327,6 @@ export const InterrogationsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Clean Filter Toolbar */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div>
-            <FormSelect
-              label="Filtra per Materia"
-              value={selectedSubject}
-              onChange={setSelectedSubject}
-              options={subjectDropdownOptions}
-            />
-          </div>
-
-          <div>
-            <FormSelect
-              label="Filtra per Stato & Mie Prenotazioni"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={statusDropdownOptions}
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Interrogations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map(item => {
@@ -527,7 +504,11 @@ export const InterrogationsPage: React.FC = () => {
                       <button
                         onClick={() => handleToggleClose(item.id, item.status)}
                         title={item.status === 'CLOSED' ? 'Riapri iscrizioni' : 'Chiudi iscrizioni'}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                        className={`p-1.5 rounded-lg transition cursor-pointer ${
+                          item.status === 'CLOSED'
+                            ? 'text-purple-600 bg-purple-50 hover:bg-purple-100 hover:text-purple-700'
+                            : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                        }`}
                       >
                         {item.status === 'CLOSED' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                       </button>

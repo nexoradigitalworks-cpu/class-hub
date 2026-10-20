@@ -184,8 +184,8 @@ export const CreateInterrogationModal: React.FC<Props> = ({
           </div>
 
           {/* Grid: Materia & Data */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-start">
+            <div className="w-full min-w-0">
               <FormSelect
                 label="Materia Orale"
                 value={subject}
@@ -195,7 +195,7 @@ export const CreateInterrogationModal: React.FC<Props> = ({
               />
             </div>
 
-            <div>
+            <div className="w-full min-w-0">
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Data Prova Orale <span className="text-red-500">*</span>
               </label>
@@ -204,14 +204,14 @@ export const CreateInterrogationModal: React.FC<Props> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs cursor-pointer"
+                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs cursor-pointer box-border"
               />
             </div>
           </div>
 
           {/* Grid: Capienza & Docente */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-start">
+            <div className="w-full min-w-0">
               <FormSelect
                 label="Capienza Volontari"
                 value={maxVolunteers}
@@ -221,36 +221,36 @@ export const CreateInterrogationModal: React.FC<Props> = ({
               />
             </div>
 
-            <div>
+            <div className="w-full min-w-0">
               <label className="block text-xs font-bold text-slate-700 mb-1.5">Docente (opzionale)</label>
               <input
                 type="text"
                 value={teacher}
                 onChange={(e) => setTeacher(e.target.value)}
-                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs"
+                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs box-border"
                 placeholder="Es. Prof.ssa Martini"
               />
             </div>
           </div>
 
           {/* Grid: Orari */}
-          <div className="grid grid-cols-2 gap-3.5">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-start">
+            <div className="w-full min-w-0">
               <label className="block text-xs font-bold text-slate-700 mb-1.5">Ora Inizio</label>
               <input
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs cursor-pointer"
+                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs cursor-pointer box-border"
               />
             </div>
-            <div>
+            <div className="w-full min-w-0">
               <label className="block text-xs font-bold text-slate-700 mb-1.5">Ora Fine</label>
               <input
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs cursor-pointer"
+                className="w-full h-11 px-3.5 py-2.5 text-sm bg-white border rounded-xl border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 shadow-2xs cursor-pointer box-border"
               />
             </div>
           </div>
